@@ -1,0 +1,12 @@
+[project]
+name = "extraction-pipeline"
+version = "0.2.0"
+description = "PDF extraction pipeline using Pydantic AI for structured output"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic-ai>=0.2.0",
+    "opendataloader-pdf>=2.3.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+]
