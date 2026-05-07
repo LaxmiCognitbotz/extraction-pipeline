@@ -1,12 +1,42 @@
-"""Pydantic models for the Element Status Sheet extraction output.
+"""Pydantic models for Element Status Sheet extraction.
 
-These schemas enforce the exact JSON structure defined in AGENT.md,
-providing validation, type coercion, and serialization for every
-transmission element extracted from the source PDFs.
+These schemas match the EXACT column structure of element_status_sheet.xlsx.
+The ``TransmissionElement`` model IS the LLM instruction — each field's
+``description`` tells the model exactly what to extract.
 
-When used as ``output_type`` in Pydantic AI, these models also serve
-as the structured output schema sent to the LLM -- the model returns
-validated instances directly.
+Column mapping (Excel → Pydantic):
+  B  Element Code               → element_code (auto-generated post-process)
+  C  Inter/Intra Tx. Element    → inter_intra_tx_element (auto-generated post-process)
+  D  Transmission Scheme        → transmission_scheme
+  E  Transmission Scope         → transmission_scope
+  F  MVA                        → mva
+  G  Status                     → status (set by doc_type post-process)
+  H  Approval NCT               → approval_nct
+  I  Source                     → source (set by doc_type post-process)
+  O  Awarded To                 → awarded_to
+  Q  SPV Transfer Date          → spv_transfer_date
+  R  Length                     → tx_length
+  S  Location                  → tx_location
+  T  Foundation                 → tx_foundation
+  U  Erection                   → tx_erection
+  V  Stringing                  → tx_stringing
+  W  Foundation (%)             → tx_foundation_pct (computed post-process)
+  X  Erection (%)               → tx_erection_pct (computed post-process)
+  Y  Stringing (%)              → tx_stringing_pct (computed post-process)
+  Z  Civil Work (%)             → ss_civil_work_pct
+  AA Equipment Received (%)     → ss_equipment_received_pct
+  AB Equipment Erected (%)      → ss_equipment_erected_pct
+  AC Original SCOD              → original_scod
+  AD Anticipated SCOD           → anticipated_scod
+  AE Remarks                    → remarks
+
+Columns NOT extracted (not discussed yet):
+  J  Tender Issuing Authority
+  K  Date of tender issuance
+  L  Date of Bid Submission
+  M  Execution Timeline
+  N  Tentative SCOD
+  P  Project Cost (Cr.) (NCT)
 """
 
 from __future__ import annotations
@@ -14,7 +44,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 # ── Enums ──────────────────────────────────────────────────────────────
@@ -30,161 +60,207 @@ class DocType(str, Enum):
     GENERAL = "General"
 
 
-class ElementStatus(str, Enum):
-    """Controlled vocabulary for element status."""
-
-    UNDER_CONSTRUCTION = "Under Construction"
-    COMMISSIONED = "Commissioned"
-
-
-# ── Nested Progress Models ─────────────────────────────────────────────
-
-
-class PhysProgressTxLine(BaseModel):
-    """Physical progress of a transmission line.
-
-    Percentage fields are 0.0-1.0 scale. If the document expresses
-    progress as e.g. '83%', convert to 0.83. If '1' means 100%, keep
-    as-is.
-    """
-
-    length: Optional[float] = Field(
-        None, description="Sanctioned length in CKM (Circuit Kilometres)"
-    )
-    location: Optional[str] = Field(
-        None, description="Location milestone or description"
-    )
-    foundation: Optional[float] = Field(
-        None, description="Completed foundation length / count"
-    )
-    erection: Optional[float] = Field(
-        None, description="Completed erection length / count"
-    )
-    stringing: Optional[float] = Field(
-        None, description="Completed stringing length / count"
-    )
-    foundation_pct: Optional[float] = Field(
-        None, description="Foundation completion % (0.0-1.0)"
-    )
-    erection_pct: Optional[float] = Field(
-        None, description="Erection completion % (0.0-1.0)"
-    )
-    stringing_pct: Optional[float] = Field(
-        None, description="Stringing completion % (0.0-1.0)"
-    )
-
-
-class PhysProgressSubstation(BaseModel):
-    """Physical progress of a substation."""
-
-    civil_work_pct: Optional[float] = Field(
-        None, description="Civil work completion % (0.0-1.0)"
-    )
-    equipment_received_pct: Optional[float] = Field(
-        None, description="Equipment received % (0.0-1.0)"
-    )
-    equipment_erected_pct: Optional[float] = Field(
-        None, description="Equipment erected % (0.0-1.0)"
-    )
-
-
-# ── Main Element Model ─────────────────────────────────────────────────
+# ── Main Element Model (= Excel Row) ──────────────────────────────────
 
 
 class TransmissionElement(BaseModel):
-    """A single transmission element extracted from a source PDF.
+    """One row in the Element Status Sheet.
 
-    Maps 1:1 to one row in the Element Status sheet.
+    Extract exactly these fields from the CEA/CTUIL transmission report
+    table data.  The table has a parent-child structure:
+
+    - **Parent rows**: Numbered (1, 2, 3…), contain the full transmission
+      scheme name (project/SPV name), executing agency, SPV transfer date.
+    - **Child rows**: Under each parent, contain the specific element
+      (line, substation, ICT, bay) with physical progress data.
+
+    Every child row is one element.  Extract ALL of them.
     """
 
-    element_code: str = Field(
-        ..., description="Unique ID in format EL-XXXXX or EL-UNKNOWN-<index>"
-    )
-    inter_intra_tx_element: str = Field(
-        "", description="Scheme/package short name, e.g. Rj Ph-IV"
-    )
+    # ── Col D: Transmission Scheme ─────────────────────────────────
     transmission_scheme: str = Field(
-        "", description="Full name of the transmission scheme / SPV"
+        "",
+        description=(
+            "Full name of the transmission scheme / project / SPV. "
+            "This appears in the numbered parent row. "
+            "Example: 'Transmission system strengthening scheme for "
+            "evacuation of power from solar energy zones in Rajasthan "
+            "(Phase-II) (Part-G)'. "
+            "For child rows that don't repeat the scheme name, leave empty."
+        ),
     )
+
+    # ── Col E: Transmission Scope ──────────────────────────────────
     transmission_scope: str = Field(
         "",
-        description="Specific element: the line, bay, or substation being constructed",
+        description=(
+            "Specific element being constructed or commissioned. "
+            "Examples: 'Khetri-Narela 765kV D/C Line', "
+            "'3x1500MVA, 765/400kV GIS substation at Narela', "
+            "'LILO of 765kV S/c Meerut-Bhiwani line at Narela'. "
+            "Extract verbatim from the table."
+        ),
     )
+
+    # ── Col F: MVA ─────────────────────────────────────────────────
     mva: Optional[float] = Field(
         None,
-        description="MVA capacity parsed from scope (e.g. 2x1500MVA -> 3000)",
+        description=(
+            "Total MVA capacity as a single number. "
+            "Compute from scope: '3x1500MVA' -> 4500, '2x500MVA' -> 1000. "
+            "Only for substations/ICTs. null for transmission lines."
+        ),
     )
-    status: str = Field(
-        ..., description="Under Construction or Commissioned"
-    )
+
+    # ── Col H: Approval NCT ───────────────────────────────────────
     approval_nct: str = Field(
-        "", description="NCT meeting number, e.g. NCT-47"
+        "",
+        description=(
+            "NCT meeting number(s) where the element was approved. "
+            "Example: 'NCT-47' or 'NCT-38, NCT-42'. "
+            "Leave empty if not mentioned."
+        ),
     )
-    source: str = Field(
-        ..., description="Source document identifier"
-    )
-    tender_issuing_authority: str = Field(
-        "", description="Entity that issued the tender, e.g. PGCIL"
-    )
-    date_of_tender_issuance: str = Field(
-        "", description="Date tender was issued (MMM-YY)"
-    )
-    date_of_bid_submission: str = Field(
-        "", description="Date bids were due (MMM-YY)"
-    )
-    execution_timeline: str = Field(
-        "", description="Contract duration, e.g. 24 months"
-    )
-    tentative_scod: str = Field(
-        "", description="Tentative SCOD from tender/award stage (MMM-YY)"
-    )
+
+    # ── Col O: Awarded To ──────────────────────────────────────────
     awarded_to: str = Field(
-        "", description="Entity awarded the contract"
+        "",
+        description=(
+            "Entity executing the project / awarded the contract. "
+            "Examples: 'PGCIL', 'Sterlite Power', 'Adani Transmission', "
+            "'Tata Projects'. Extract from the parent row."
+        ),
     )
+
+    # ── Col Q: SPV Transfer Date ───────────────────────────────────
     spv_transfer_date: str = Field(
-        "", description="SPV transfer date (MMM-YY)"
-    )
-    project_cost: Optional[float] = Field(
-        None, description="Project cost in Crores (Rs. Cr.)"
-    )
-
-    phys_progress_tx_line: Optional[PhysProgressTxLine] = Field(
-        default_factory=PhysProgressTxLine,
-        description="Physical progress of transmission line",
-    )
-    phys_progress_substation: Optional[PhysProgressSubstation] = Field(
-        default_factory=PhysProgressSubstation,
-        description="Physical progress of substation",
+        "",
+        description=(
+            "Date of transfer of SPV, in MMM-YY format. "
+            "Examples: 'May-22', 'Mar-23', 'Oct-24'. "
+            "Extract from the parent row."
+        ),
     )
 
+    # ── Cols R-V: Physical Progress — Transmission Line ────────────
+    tx_length: Optional[float] = Field(
+        None,
+        description=(
+            "Sanctioned length of transmission line in CKM. "
+            "Example: 340, 628. Only for transmission lines, null for substations."
+        ),
+    )
+    tx_location: Optional[float] = Field(
+        None,
+        description=(
+            "Total tower locations (number of towers sanctioned). "
+            "Example: 463, 816. Only for transmission lines."
+        ),
+    )
+    tx_foundation: Optional[float] = Field(
+        None,
+        description=(
+            "Foundation completed (number of tower foundations done). "
+            "Example: 463. Only for transmission lines."
+        ),
+    )
+    tx_erection: Optional[float] = Field(
+        None,
+        description=(
+            "Erection completed (number of towers erected). "
+            "Example: 463. Only for transmission lines."
+        ),
+    )
+    tx_stringing: Optional[float] = Field(
+        None,
+        description=(
+            "Stringing completed in CKM. "
+            "Example: 340, 524.24. Only for transmission lines."
+        ),
+    )
+
+    # ── Cols Z-AB: Physical Progress — Substation ──────────────────
+    ss_civil_work_pct: Optional[float] = Field(
+        None,
+        description=(
+            "Civil work completion percentage for substation (0.0 to 1.0). "
+            "'100%' -> 1.0, '85%' -> 0.85. "
+            "Only for substations/ICTs, null for transmission lines."
+        ),
+    )
+    ss_equipment_received_pct: Optional[float] = Field(
+        None,
+        description=(
+            "Equipment received percentage for substation (0.0 to 1.0). "
+            "Only for substations/ICTs."
+        ),
+    )
+    ss_equipment_erected_pct: Optional[float] = Field(
+        None,
+        description=(
+            "Equipment erected percentage for substation (0.0 to 1.0). "
+            "Only for substations/ICTs."
+        ),
+    )
+
+    # ── Cols AC-AD: SCOD ───────────────────────────────────────────
     original_scod: str = Field(
-        "", description="Original SCOD per approval/award (MMM-YY)"
+        "",
+        description=(
+            "Original scheduled commissioning date in MMM-YY format. "
+            "Example: 'Nov-23', 'Sep-24'."
+        ),
     )
     anticipated_scod: str = Field(
-        "", description="Current anticipated / revised SCOD (MMM-YY)"
+        "",
+        description=(
+            "Current anticipated / revised commissioning date. "
+            "Example: 'Dec - 25', 'Mar-26'."
+        ),
     )
+
+    # ── Col AE: Remarks ────────────────────────────────────────────
     remarks: str = Field(
-        "", description="Verbatim remarks from the document"
+        "",
+        description=(
+            "Verbatim remarks from the report. Include RoW issues, "
+            "forest clearance status, charging dates, land acquisition "
+            "notes. Do NOT summarise. Preserve line breaks as \\n."
+        ),
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def coerce_null_progress(cls, values: dict) -> dict:
-        """Convert null progress objects to empty defaults.
+    # ── Post-processed fields (filled by business_logic, NOT by LLM) ──
+    element_code: str = Field(
+        "",
+        description="Auto-generated unique ID. Leave empty — filled by post-processing.",
+    )
+    inter_intra_tx_element: str = Field(
+        "",
+        description="Auto-generated abbreviation. Leave empty — filled by post-processing.",
+    )
+    status: str = Field(
+        "",
+        description="Auto-set from document type. Leave empty — filled by post-processing.",
+    )
+    source: str = Field(
+        "",
+        description="Auto-set from document type. Leave empty — filled by post-processing.",
+    )
+    tx_foundation_pct: Optional[float] = Field(
+        None,
+        description="Auto-computed: foundation / location. Leave null.",
+    )
+    tx_erection_pct: Optional[float] = Field(
+        None,
+        description="Auto-computed: erection / location. Leave null.",
+    )
+    tx_stringing_pct: Optional[float] = Field(
+        None,
+        description="Auto-computed: stringing / length. Leave null.",
+    )
 
-        The LLM may return ``null`` for nested progress objects when no
-        physical progress data is available. Pydantic needs a valid
-        model instance, so we coerce ``None`` to ``{}``.
-        """
-        if isinstance(values, dict):
-            if values.get("phys_progress_tx_line") is None:
-                values["phys_progress_tx_line"] = {}
-            if values.get("phys_progress_substation") is None:
-                values["phys_progress_substation"] = {}
-        return values
 
-
-# ── Extraction Result Wrapper ──────────────────────────────────────────
+# ── Extraction Result Wrapper (Internal) ──────────────────────────────
 
 
 class ExtractionResult(BaseModel):

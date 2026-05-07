@@ -14,6 +14,7 @@ output works seamlessly.
 from __future__ import annotations
 
 import os
+import httpx
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,7 @@ def _get_vm_model() -> Any:
     going through the raw batch script subprocess.
     """
     from openai import AsyncAzureOpenAI
+    import httpx
 
     from pydantic_ai.models.openai import OpenAIModel
     from pydantic_ai.providers.openai import OpenAIProvider
@@ -85,6 +87,7 @@ def _get_vm_model() -> Any:
         api_key=creds["api_key"],
         api_version=creds["api_version"],
         azure_endpoint=creds["endpoint"],
+        http_client=httpx.AsyncClient(verify=False),
     )
 
     deployment_name = settings.vm_model if settings.vm_model else creds["deployment"]
@@ -98,7 +101,120 @@ def _get_vm_model() -> Any:
     return model
 
 
-def _parse_bat_credentials() -> dict[str, str]:
+def _get_bat_path() -> Path:
+    if settings.vm_script_path:
+        bat_path = Path(settings.vm_script_path)
+    else:
+        workspace_root = settings.project_root.parent
+        bat_path = workspace_root / "llm_client.bat"
+
+    if not bat_path.exists():
+        raise FileNotFoundError(
+            f"VM mode enabled but llm_client.bat not found at {bat_path}. "
+            f"Set VM_SCRIPT_PATH in .env to the correct path."
+        )
+    return bat_path
+
+
+class VMBatchTransport(httpx.AsyncBaseTransport):
+    """
+    Custom transport that routes HTTP requests through the local llm_client.bat script.
+    This uses the subprocess approach requested while keeping Pydantic AI's structure.
+    """
+    def __init__(self, bat_path: Path):
+        self.bat_path = bat_path
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        import tempfile
+        import asyncio
+        import subprocess
+
+        await request.aread()
+        payload_bytes = request.content
+        temp_file_path = ""
+        try:
+            with tempfile.NamedTemporaryFile("wb", suffix=".json", delete=False) as tmp:
+                tmp.write(payload_bytes)
+                temp_file_path = tmp.name
+
+            command = ["cmd", "/c", str(self.bat_path), temp_file_path]
+            
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=os.environ.copy()
+            )
+            stdout, stderr = await proc.communicate()
+            
+            if proc.returncode != 0:
+                err_msg = stderr.decode('utf-8', errors='ignore').strip()
+                raise RuntimeError(f"VM script failed (exit {proc.returncode}): {err_msg}")
+            
+            raw_output = stdout.decode("utf-8", errors="ignore").strip()
+            if not raw_output:
+                raise RuntimeError("LLM VM script returned empty output.")
+                
+            import json
+            try:
+                parsed = json.loads(raw_output)
+                if "error" in parsed:
+                    err_str = json.dumps(parsed['error'], indent=2)
+                    print(f"\n[VM SCRIPT ERROR]\n{err_str}\n")
+                    raise RuntimeError(f"Azure OpenAI API Error: {err_str}")
+            except json.JSONDecodeError:
+                print(f"\n[VM SCRIPT NON-JSON]\n{raw_output[:1000]}\n")
+                raise RuntimeError(f"Unexpected non-JSON response from VM script:\n{raw_output[:1000]}")
+                
+            return httpx.Response(
+                status_code=200,
+                content=raw_output.encode("utf-8"),
+                request=request
+            )
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except OSError:
+                    pass
+
+
+def _get_vm_model() -> Any:
+    """Configure Azure OpenAI model via the VM batch script credentials.
+
+    Uses a custom httpx transport that executes the actual llm_client.bat script
+    via subprocess, ensuring the proxy and environment settings inside the .bat
+    are utilized exactly as in the standalone sample code.
+    """
+    from openai import AsyncAzureOpenAI
+    import httpx
+
+    from pydantic_ai.models.openai import OpenAIModel
+    from pydantic_ai.providers.openai import OpenAIProvider
+
+    bat_path = _get_bat_path()
+    creds = _parse_bat_credentials(bat_path)
+
+    client = AsyncAzureOpenAI(
+        api_key=creds["api_key"],
+        api_version=creds["api_version"],
+        azure_endpoint=creds["endpoint"],
+        # Use our custom transport to execute the batch script directly!
+        http_client=httpx.AsyncClient(transport=VMBatchTransport(bat_path)),
+    )
+
+    deployment_name = settings.vm_model if settings.vm_model else creds["deployment"]
+
+    provider = OpenAIProvider(openai_client=client)
+    model = OpenAIModel(
+        model_name=deployment_name,
+        provider=provider,
+    )
+
+    return model
+
+
+def _parse_bat_credentials(bat_path: Path) -> dict[str, str]:
     """Parse Azure OpenAI credentials from llm_client.bat.
 
     The batch file has lines like:
@@ -110,21 +226,6 @@ def _parse_bat_credentials() -> dict[str, str]:
     Returns:
         Dict with keys: endpoint, deployment, api_version, api_key.
     """
-    # Look for llm_client.bat relative to project root or workspace root
-    bat_path = None
-    if settings.vm_script_path:
-        bat_path = Path(settings.vm_script_path)
-    else:
-        # Default: look in workspace root (one level above extraction-pipeline)
-        workspace_root = settings.project_root.parent
-        bat_path = workspace_root / "llm_client.bat"
-
-    if not bat_path.exists():
-        raise FileNotFoundError(
-            f"VM mode enabled but llm_client.bat not found at {bat_path}. "
-            f"Set VM_SCRIPT_PATH in .env to the correct path."
-        )
-
     creds: dict[str, str] = {}
     bat_content = bat_path.read_text(encoding="utf-8")
 

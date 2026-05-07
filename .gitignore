@@ -35,6 +35,7 @@ uploads/
 source_1_output/
 effectiveness_output/
 jcc_output/
+bulk_consumers/
 
 # ─── Generated Excel reports (all in excels/) ────────────────────────────────
 excels/

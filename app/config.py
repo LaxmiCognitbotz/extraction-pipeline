@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     """Pipeline configuration loaded from environment variables and .env file."""
 
     # ==== LLM Provider Selection ====
-    llm_provider: Literal["vm", "groq", "google"] = "groq"
+    llm_provider: Literal["vm", "groq", "google"] = "vm"
 
     # ==== Google Gemini ====
     google_api_key: str = ""
@@ -47,9 +47,6 @@ class Settings(BaseSettings):
     uploads_dir: Path = project_root / "uploads"
     output_dir: Path = project_root / "output"
     prompts_dir: Path = project_root / "prompts"
-
-    # ==== opendataloader-pdf ====
-    pdf_output_format: str = "markdown"
 
     # ── Convenience Properties ──
 
