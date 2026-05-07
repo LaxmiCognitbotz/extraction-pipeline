@@ -128,7 +128,7 @@ def run_pipeline(
         encoding="utf-8",
     )
 
-    print(f"[pipeline] [OK] {result.element_count} elements → {output_path}")
+    print(f"[pipeline] [OK] {result.element_count} elements -> {output_path}")
     return result
 
 
@@ -175,7 +175,7 @@ def run_batch(
         if dry_run:
             entry["status"] = "dry_run"
             summary.append(entry)
-            print(f"  [{i:02d}/{len(pdfs)}] {rel_path} → {entry['doc_type']}")
+            print(f"  [{i:02d}/{len(pdfs)}] {rel_path} -> {entry['doc_type']}")
             continue
 
         if not inferred:

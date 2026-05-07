@@ -194,7 +194,7 @@ def extract_from_corpus(
     total_chars = sum(len(c) for c in chunks)
     print(
         f"[extractor] {total_chunks} chunk(s) "
-        f"({total_chars:,} chars) → {settings.model_name} "
+        f"({total_chars:,} chars) -> {settings.model_name} "
         f"({settings.llm_provider})"
     )
 
@@ -212,7 +212,7 @@ def extract_from_corpus(
                 agent, chunk, i, total_chunks, doc_type, region
             )
             all_elements.extend(elems)
-            print(f"[extractor]   [{i}/{total_chunks}] → {len(elems)} elements")
+            print(f"[extractor]   [{i}/{total_chunks}] -> {len(elems)} elements")
         except Exception as e:
             print(f"[extractor]   [{i}/{total_chunks}] [ERR] {e}")
             continue
@@ -257,7 +257,7 @@ def extract_elements(
 
     from app.converter import chunk_text
     chunks = chunk_text(md_content)
-    print(f"[extractor] {len(chunks)} chunk(s) → {settings.model_name}")
+    print(f"[extractor] {len(chunks)} chunk(s) -> {settings.model_name}")
 
     agent = _get_agent()
     all_elements: list[TransmissionElement] = []

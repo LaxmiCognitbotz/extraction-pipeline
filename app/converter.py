@@ -70,23 +70,35 @@ def _clean_cell(value: str) -> str:
 def _normalize_table(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize a raw Camelot DataFrame.
 
-    - First row becomes column headers
-    - Headers are stripped and lowercased
     - All cells are cleaned
+    - First row becomes column headers (made unique)
     - Empty rows are dropped
     """
     if df.empty or len(df) < 2:
         return df
 
-    # Use first row as headers
-    headers = [_clean_cell(str(c)).lower() for c in df.iloc[0]]
-    data = df.iloc[1:]
-    data.columns = headers
-    data = data.reset_index(drop=True)
+    # Clean all cells safely regardless of column names
+    clean_func = lambda x: _clean_cell(str(x))
+    if hasattr(df, "map"):
+        df = df.map(clean_func)
+    else:
+        df = df.applymap(clean_func)
 
-    # Clean all cell values
-    for col in data.columns:
-        data[col] = data[col].apply(lambda x: _clean_cell(str(x)))
+    # Use first row as headers and make them unique
+    raw_headers = [str(c).lower() for c in df.iloc[0]]
+    unique_headers = []
+    seen = {}
+    for h in raw_headers:
+        if h in seen:
+            seen[h] += 1
+            unique_headers.append(f"{h}_{seen[h]}")
+        else:
+            seen[h] = 0
+            unique_headers.append(h)
+
+    data = df.iloc[1:].copy()
+    data.columns = unique_headers
+    data = data.reset_index(drop=True)
 
     # Drop completely empty rows
     data = data[data.apply(lambda row: any(v.strip() for v in row), axis=1)]
@@ -177,14 +189,14 @@ def extract_tables_from_pdf(
     # Smart-chunk the corpus
     corpus.chunks = chunk_text(corpus.corpus_text)
     print(
-        f"[converter] [OK] Corpus: {corpus.corpus_chars:,} chars → "
+        f"[converter] [OK] Corpus: {corpus.corpus_chars:,} chars -> "
         f"{len(corpus.chunks)} chunk(s)"
     )
 
     # Write debug Markdown
     md_path = out_dir / f"{pdf_path.stem}.md"
     md_path.write_text(corpus.debug_markdown, encoding="utf-8")
-    print(f"[converter] [OK] Debug Markdown → {md_path}")
+    print(f"[converter] [OK] Debug Markdown -> {md_path}")
 
     return corpus
 

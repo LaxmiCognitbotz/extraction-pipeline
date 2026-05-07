@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     """Pipeline configuration loaded from environment variables and .env file."""
 
     # ==== LLM Provider Selection ====
-    llm_provider: Literal["vm", "groq", "google"] = "vm"
+    llm_provider: Literal["vm", "groq", "google"] = "groq"
 
     # ==== Google Gemini ====
     google_api_key: str = ""
