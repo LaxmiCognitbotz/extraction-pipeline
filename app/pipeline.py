@@ -125,9 +125,25 @@ def run_pipeline(
     )
     print(f"[pipeline] [OK] JSON saved -> {output_path}")
 
-    # Generate Excel
+    # Generate Master Excel
     if output_data["elements"]:
-        df = pd.DataFrame(output_data["elements"])
+        excels_dir = settings.project_root / "excels"
+        excels_dir.mkdir(parents=True, exist_ok=True)
+        master_excel = excels_dir / "Element Status.xlsx"
+        
+        new_df = pd.DataFrame(output_data["elements"])
+        
+        if master_excel.exists():
+            try:
+                df_existing = pd.read_excel(master_excel, header=None, skiprows=2)
+                df_existing.dropna(how="all", inplace=True)
+                combined_data = df_existing.values.tolist() + new_df.values.tolist()
+                df_combined = pd.DataFrame(combined_data)
+            except Exception as e:
+                print(f"[pipeline] [WARN] Failed to read existing master Excel: {e}. Starting fresh.")
+                df_combined = new_df
+        else:
+            df_combined = new_df
         
         # Build exact grouped headers requested by user
         multi_cols = [
@@ -163,17 +179,15 @@ def run_pipeline(
             ("Remarks", ""),
         ]
         
-        df.columns = pd.MultiIndex.from_tuples(multi_cols)
+        df_combined.columns = pd.MultiIndex.from_tuples(multi_cols)
         
-        excel_path = out_dir / f"{pdf_path.stem}_extracted.xlsx"
-        
-        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-            df.to_excel(writer, index=True)
-            # Delete the first column (the pandas index) since index=False doesn't work with MultiIndex
-            worksheet = writer.sheets["Sheet1"]
+        with pd.ExcelWriter(master_excel, engine="openpyxl") as writer:
+            df_combined.to_excel(writer, sheet_name="Element Status", index=True)
+            # Delete the first column (the pandas index)
+            worksheet = writer.sheets["Element Status"]
             worksheet.delete_cols(1)
             
-        print(f"[pipeline] [OK] Excel saved -> {excel_path}")
+        print(f"[pipeline] [OK] Master Excel updated -> {master_excel}")
 
     return result
 
