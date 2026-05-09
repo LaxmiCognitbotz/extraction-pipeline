@@ -315,6 +315,20 @@ def parse_mva_from_text(text: str) -> Optional[float]:
 # ── 6. Parent-Child Scheme Inheritance ─────────────────────────────────
 
 
+def clean_scheme_name(scheme: str) -> str:
+    """Strip leading serial numbers and trailing SPV references."""
+    if not scheme:
+        return scheme
+    
+    # Remove leading serial numbers like "1 ", "1.", "2 - "
+    cleaned = re.sub(r"^\d+\s*[\.\-\)]?\s*", "", scheme.strip())
+    
+    # Remove trailing "(SPV: ...)" blocks
+    cleaned = re.sub(r"\s*\(SPV:.*?\)$", "", cleaned, flags=re.IGNORECASE)
+    
+    return cleaned.strip()
+
+
 def inherit_scheme_to_children(
     elements: list[TransmissionElement],
 ) -> list[TransmissionElement]:
@@ -328,7 +342,8 @@ def inherit_scheme_to_children(
 
     for elem in elements:
         if elem.transmission_scheme and elem.transmission_scheme.strip():
-            current_scheme = elem.transmission_scheme.strip()
+            current_scheme = clean_scheme_name(elem.transmission_scheme)
+            elem.transmission_scheme = current_scheme
             if elem.awarded_to:
                 current_awarded_to = elem.awarded_to
             if elem.spv_transfer_date:
@@ -348,7 +363,7 @@ def inherit_scheme_to_children(
 
 
 def compute_percentages(element: TransmissionElement) -> TransmissionElement:
-    """Compute physical progress percentages (Cols W, X, Y).
+    """Compute physical progress percentages (Cols W, X, Y) and format as strings.
 
     Formulas:
       Foundation (%) = Foundation / Location
@@ -357,28 +372,18 @@ def compute_percentages(element: TransmissionElement) -> TransmissionElement:
     """
     # Foundation % = Foundation / Location
     if element.tx_foundation is not None and element.tx_location and element.tx_location > 0:
-        element.tx_foundation_pct = round(element.tx_foundation / element.tx_location, 4)
-    elif element.tx_foundation_pct is not None and element.tx_foundation_pct > 1.0:
-        # LLM returned whole percentage (e.g. 83) instead of 0.83
-        element.tx_foundation_pct = element.tx_foundation_pct / 100.0
+        val = element.tx_foundation / element.tx_location
+        element.tx_foundation_pct = f"{val * 100:.2f}%"
 
     # Erection % = Erection / Location
     if element.tx_erection is not None and element.tx_location and element.tx_location > 0:
-        element.tx_erection_pct = round(element.tx_erection / element.tx_location, 4)
-    elif element.tx_erection_pct is not None and element.tx_erection_pct > 1.0:
-        element.tx_erection_pct = element.tx_erection_pct / 100.0
+        val = element.tx_erection / element.tx_location
+        element.tx_erection_pct = f"{val * 100:.2f}%"
 
     # Stringing % = Stringing / Length
     if element.tx_stringing is not None and element.tx_length and element.tx_length > 0:
-        element.tx_stringing_pct = round(element.tx_stringing / element.tx_length, 4)
-    elif element.tx_stringing_pct is not None and element.tx_stringing_pct > 1.0:
-        element.tx_stringing_pct = element.tx_stringing_pct / 100.0
-
-    # Substation percentages — normalise if > 1.0
-    for field in ("ss_civil_work_pct", "ss_equipment_received_pct", "ss_equipment_erected_pct"):
-        val = getattr(element, field)
-        if val is not None and val > 1.0:
-            setattr(element, field, val / 100.0)
+        val = element.tx_stringing / element.tx_length
+        element.tx_stringing_pct = f"{val * 100:.2f}%"
 
     return element
 

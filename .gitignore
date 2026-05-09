@@ -39,6 +39,8 @@ bulk_consumers/
 
 # ─── Generated Excel reports (all in excels/) ────────────────────────────────
 excels/
+excel_columns.png
+image.png
 
 # ─── Generated JSON output ───────────────────────────────────────────────────
 effectiveness_mapped.json

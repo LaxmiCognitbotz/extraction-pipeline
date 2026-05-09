@@ -44,7 +44,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ── Enums ──────────────────────────────────────────────────────────────
@@ -76,187 +76,184 @@ class TransmissionElement(BaseModel):
 
     Every child row is one element.  Extract ALL of them.
     """
+    model_config = ConfigDict(populate_by_name=True)
 
-    # ── Col D: Transmission Scheme ─────────────────────────────────
+    element_code: str = Field(
+        "", alias="Element Code",
+        description="Auto-generated unique ID. Leave empty — filled by post-processing.",
+    )
+    inter_intra_tx_element: str = Field(
+        "", alias="Inter/Intra Tx. Element",
+        description="Auto-generated abbreviation. Leave empty — filled by post-processing.",
+    )
     transmission_scheme: str = Field(
-        "",
+        "", alias="Transmission Scheme",
         description=(
             "Full name of the transmission scheme / project / SPV. "
             "This appears in the numbered parent row. "
-            "Example: 'Transmission system strengthening scheme for "
-            "evacuation of power from solar energy zones in Rajasthan "
-            "(Phase-II) (Part-G)'. "
             "For child rows that don't repeat the scheme name, leave empty."
         ),
     )
-
-    # ── Col E: Transmission Scope ──────────────────────────────────
     transmission_scope: str = Field(
-        "",
+        "", alias="Transmission Scope",
         description=(
             "Specific element being constructed or commissioned. "
             "Examples: 'Khetri-Narela 765kV D/C Line', "
-            "'3x1500MVA, 765/400kV GIS substation at Narela', "
-            "'LILO of 765kV S/c Meerut-Bhiwani line at Narela'. "
+            "'3x1500MVA, 765/400kV GIS substation at Narela'. "
             "Extract verbatim from the table."
         ),
     )
-
-    # ── Col F: MVA ─────────────────────────────────────────────────
     mva: Optional[float] = Field(
-        None,
+        None, alias="MVA",
         description=(
             "Total MVA capacity as a single number. "
             "Compute from scope: '3x1500MVA' -> 4500, '2x500MVA' -> 1000. "
             "Only for substations/ICTs. null for transmission lines."
         ),
     )
-
-    # ── Col H: Approval NCT ───────────────────────────────────────
+    status: str = Field(
+        "", alias="Status",
+        description="Auto-set from document type. Leave empty — filled by post-processing.",
+    )
     approval_nct: str = Field(
-        "",
+        "", alias="Approval of Elements in which NCT",
         description=(
             "NCT meeting number(s) where the element was approved. "
             "Example: 'NCT-47' or 'NCT-38, NCT-42'. "
             "Leave empty if not mentioned."
         ),
     )
-
-    # ── Col O: Awarded To ──────────────────────────────────────────
+    source: str = Field(
+        "", alias="Source",
+        description="Auto-set from document type. Leave empty — filled by post-processing.",
+    )
+    tender_issuing_authority: str = Field(
+        "", alias="Tender Issuing Authority",
+        description="Tender Issuing Authority. Leave empty if not mentioned.",
+    )
+    date_of_tender_issuance: str = Field(
+        "", alias="Date of tender issuance",
+        description="Date of tender issuance. Leave empty if not mentioned.",
+    )
+    date_of_bid_submission: str = Field(
+        "", alias="Date of Bid Submission",
+        description="Date of Bid Submission. Leave empty if not mentioned.",
+    )
+    execution_timeline: str = Field(
+        "", alias="Execution Timeline",
+        description="Execution Timeline in months. Leave empty if not mentioned.",
+    )
+    tentative_scod: str = Field(
+        "", alias="Tentative SCOD",
+        description="Tentative SCOD. Leave empty if not mentioned.",
+    )
     awarded_to: str = Field(
-        "",
+        "", alias="Awarded To",
         description=(
             "Entity executing the project / awarded the contract. "
-            "Examples: 'PGCIL', 'Sterlite Power', 'Adani Transmission', "
-            "'Tata Projects'. Extract from the parent row."
+            "Examples: 'PGCIL', 'Sterlite Power'. Extract from the parent row."
         ),
     )
-
-    # ── Col Q: SPV Transfer Date ───────────────────────────────────
+    project_cost: str = Field(
+        "", alias="Project Cost (Cr.) (NCT)",
+        description="Project Cost in Crores. Leave empty if not mentioned.",
+    )
     spv_transfer_date: str = Field(
-        "",
+        "", alias="SPV Transfer Date",
         description=(
             "Date of transfer of SPV, in MMM-YY format. "
-            "Examples: 'May-22', 'Mar-23', 'Oct-24'. "
-            "Extract from the parent row."
+            "Examples: 'May-22', 'Mar-23'. Extract from the parent row."
         ),
     )
-
-    # ── Cols R-V: Physical Progress — Transmission Line ────────────
     tx_length: Optional[float] = Field(
-        None,
+        None, alias="Physical Progress S/s of Tx. Line > Length",
         description=(
             "Sanctioned length of transmission line in CKM. "
-            "Example: 340, 628. Only for transmission lines, null for substations."
+            "Example: 340, 628. Only for transmission lines."
         ),
     )
     tx_location: Optional[float] = Field(
-        None,
+        None, alias="Physical Progress S/s of Tx. Line > Location",
         description=(
             "Total tower locations (number of towers sanctioned). "
             "Example: 463, 816. Only for transmission lines."
         ),
     )
     tx_foundation: Optional[float] = Field(
-        None,
+        None, alias="Physical Progress S/s of Tx. Line > Foundation",
         description=(
             "Foundation completed (number of tower foundations done). "
-            "Example: 463. Only for transmission lines."
+            "Only for transmission lines."
         ),
     )
     tx_erection: Optional[float] = Field(
-        None,
+        None, alias="Physical Progress S/s of Tx. Line > Erection",
         description=(
             "Erection completed (number of towers erected). "
-            "Example: 463. Only for transmission lines."
+            "Only for transmission lines."
         ),
     )
     tx_stringing: Optional[float] = Field(
-        None,
+        None, alias="Physical Progress S/s of Tx. Line > Stringing",
         description=(
             "Stringing completed in CKM. "
             "Example: 340, 524.24. Only for transmission lines."
         ),
     )
-
-    # ── Cols Z-AB: Physical Progress — Substation ──────────────────
-    ss_civil_work_pct: Optional[float] = Field(
-        None,
-        description=(
-            "Civil work completion percentage for substation (0.0 to 1.0). "
-            "'100%' -> 1.0, '85%' -> 0.85. "
-            "Only for substations/ICTs, null for transmission lines."
-        ),
+    tx_foundation_pct: Optional[str] = Field(
+        None, alias="Physical Progress S/s of Tx. Line > Foundation (%)",
+        description="Auto-computed. Leave null.",
     )
-    ss_equipment_received_pct: Optional[float] = Field(
-        None,
+    tx_erection_pct: Optional[str] = Field(
+        None, alias="Physical Progress S/s of Tx. Line > Erection (%)",
+        description="Auto-computed. Leave null.",
+    )
+    tx_stringing_pct: Optional[str] = Field(
+        None, alias="Physical Progress S/s of Tx. Line > Stringing (%)",
+        description="Auto-computed. Leave null.",
+    )
+    ss_civil_work_pct: Optional[str] = Field(
+        None, alias="Physical Progress Substation > Civil Work (%)",
         description=(
-            "Equipment received percentage for substation (0.0 to 1.0). "
+            "Civil work completion percentage for substation. "
+            "Extract EXACTLY as written (e.g. '92.00%'). "
             "Only for substations/ICTs."
         ),
     )
-    ss_equipment_erected_pct: Optional[float] = Field(
-        None,
+    ss_equipment_received_pct: Optional[str] = Field(
+        None, alias="Physical Progress Substation > Equipment Received (%)",
         description=(
-            "Equipment erected percentage for substation (0.0 to 1.0). "
-            "Only for substations/ICTs."
+            "Equipment received percentage for substation. "
+            "Extract EXACTLY as written."
         ),
     )
-
-    # ── Cols AC-AD: SCOD ───────────────────────────────────────────
+    ss_equipment_erected_pct: Optional[str] = Field(
+        None, alias="Physical Progress Substation > Equipment Erected (%)",
+        description=(
+            "Equipment erected percentage for substation. "
+            "Extract EXACTLY as written."
+        ),
+    )
     original_scod: str = Field(
-        "",
+        "", alias="Original SCOD",
         description=(
             "Original scheduled commissioning date in MMM-YY format. "
             "Example: 'Nov-23', 'Sep-24'."
         ),
     )
     anticipated_scod: str = Field(
-        "",
+        "", alias="Anticipated SCOD",
         description=(
             "Current anticipated / revised commissioning date. "
             "Example: 'Dec - 25', 'Mar-26'."
         ),
     )
-
-    # ── Col AE: Remarks ────────────────────────────────────────────
     remarks: str = Field(
-        "",
+        "", alias="Remarks",
         description=(
             "Verbatim remarks from the report. Include RoW issues, "
-            "forest clearance status, charging dates, land acquisition "
-            "notes. Do NOT summarise. Preserve line breaks as \\n."
+            "forest clearance status. Do NOT summarise. Preserve line breaks as \\n."
         ),
-    )
-
-    # ── Post-processed fields (filled by business_logic, NOT by LLM) ──
-    element_code: str = Field(
-        "",
-        description="Auto-generated unique ID. Leave empty — filled by post-processing.",
-    )
-    inter_intra_tx_element: str = Field(
-        "",
-        description="Auto-generated abbreviation. Leave empty — filled by post-processing.",
-    )
-    status: str = Field(
-        "",
-        description="Auto-set from document type. Leave empty — filled by post-processing.",
-    )
-    source: str = Field(
-        "",
-        description="Auto-set from document type. Leave empty — filled by post-processing.",
-    )
-    tx_foundation_pct: Optional[float] = Field(
-        None,
-        description="Auto-computed: foundation / location. Leave null.",
-    )
-    tx_erection_pct: Optional[float] = Field(
-        None,
-        description="Auto-computed: erection / location. Leave null.",
-    )
-    tx_stringing_pct: Optional[float] = Field(
-        None,
-        description="Auto-computed: stringing / length. Leave null.",
     )
 
 

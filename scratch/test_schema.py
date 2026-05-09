@@ -29,39 +29,46 @@ elem = TransmissionElement(
     anticipated_scod="Dec - 25",
     remarks="Forest Delhi (0.95 Ha, 3 locs, 82.58 Ckm): Stage I&II received.",
 )
-d = elem.model_dump(mode="json")
+d = elem.model_dump(mode="json", by_alias=True)
 excel_cols = [
-    "element_code", "inter_intra_tx_element", "transmission_scheme",
-    "transmission_scope", "mva", "status", "approval_nct", "source",
-    "awarded_to", "spv_transfer_date",
-    "tx_length", "tx_location", "tx_foundation", "tx_erection", "tx_stringing",
-    "tx_foundation_pct", "tx_erection_pct", "tx_stringing_pct",
-    "ss_civil_work_pct", "ss_equipment_received_pct", "ss_equipment_erected_pct",
-    "original_scod", "anticipated_scod", "remarks",
+    "Element Code", "Inter/Intra Tx. Element", "Transmission Scheme",
+    "Transmission Scope", "MVA", "Status", "Approval of Elements in which NCT", "Source",
+    "Tender Issuing Authority", "Date of tender issuance", "Date of Bid Submission",
+    "Execution Timeline", "Tentative SCOD", "Awarded To", "Project Cost (Cr.) (NCT)",
+    "SPV Transfer Date", "Physical Progress S/s of Tx. Line > Length",
+    "Physical Progress S/s of Tx. Line > Location",
+    "Physical Progress S/s of Tx. Line > Foundation",
+    "Physical Progress S/s of Tx. Line > Erection",
+    "Physical Progress S/s of Tx. Line > Stringing",
+    "Physical Progress S/s of Tx. Line > Foundation (%)",
+    "Physical Progress S/s of Tx. Line > Erection (%)",
+    "Physical Progress S/s of Tx. Line > Stringing (%)",
+    "Physical Progress Substation > Civil Work (%)",
+    "Physical Progress Substation > Equipment Received (%)",
+    "Physical Progress Substation > Equipment Erected (%)",
+    "Original SCOD", "Anticipated SCOD", "Remarks",
 ]
 for col in excel_cols:
     assert col in d, f"Missing field: {col}"
 print(f"  [OK] All {len(excel_cols)} Excel columns present in schema")
 
-
 # ── 2. Inter/Intra abbreviation logic ──
 print("\n--- 2. Inter/Intra abbreviation logic ---")
 test_cases = [
-    ("Transmission system strengthening scheme for evacuation of power from solar energy zones in Rajasthan (Phase-II) (Part-G)", "RJ"),
+    ("1 Transmission system strengthening scheme for evacuation of power from solar energy zones in Rajasthan (Phase-II) (Part-G) (SPV: PGCIL)", "RJ Ph-II Part-G"),
     ("Transmission system associated with LTA applications from Rajasthan SEZ Phase-III Part-C1", "RJ Ph-III Part-C1"),
     ("Transmission Scheme for Evacuation of power from potential renewable energy zone in Khavda area of Gujarat under Phase-IV (7 GW): Part E2", "Khavda Ph-IV Part-E2"),
     ("Transmission System for Evacuation of Power from Rajasthan REZ Phase-IV Part 3", "RJ Ph-IV Part-3"),
     ("Transmission Scheme for Solar Energy Zone in Bidar (2500 MW)", "Bidar"),
-    ("Augmentation of transformation capacity at Jam Khambhaliya Pooling Station (5th and 6th)", "Aug. Jam"),
+    ("Augmentation of transformation capacity at Jam Khambhaliya Pooling Station (5th and 6th)", "Aug. Jam ICT(5th and 6th)"),
 ]
 for scheme, expected_contains in test_cases:
-    result = generate_inter_intra(scheme)
+    # Use clean_scheme_name before generating inter_intra
+    from app.business_logic import clean_scheme_name
+    cleaned = clean_scheme_name(scheme)
+    result = generate_inter_intra(cleaned)
     print(f"  Scheme: ...{scheme[-50:]}...")
     print(f"    Got: '{result}'")
-    # Note: exact matching is hard since the logic is heuristic,
-    # but key parts should be present
-    print()
-
 
 # ── 3. Percentage calculation ──
 print("--- 3. Percentage calculation ---")
@@ -77,9 +84,9 @@ elem2 = compute_percentages(elem2)
 assert elem2.tx_foundation_pct is not None
 assert elem2.tx_erection_pct is not None
 assert elem2.tx_stringing_pct is not None
-print(f"  Foundation%: {elem2.tx_foundation_pct} (463/463 = 1.0) [OK]")
-print(f"  Erection%:   {elem2.tx_erection_pct} (463/463 = 1.0) [OK]")
-print(f"  Stringing%:  {elem2.tx_stringing_pct} (340/340 = 1.0) [OK]")
+print(f"  Foundation%: {elem2.tx_foundation_pct} (463/463 = 100.00%) [OK]")
+print(f"  Erection%:   {elem2.tx_erection_pct} (463/463 = 100.00%) [OK]")
+print(f"  Stringing%:  {elem2.tx_stringing_pct} (340/340 = 100.00%) [OK]")
 
 elem3 = TransmissionElement(
     transmission_scope="765kV D/C Line",
@@ -90,9 +97,9 @@ elem3 = TransmissionElement(
     tx_stringing=524.24,
 )
 elem3 = compute_percentages(elem3)
-print(f"  Foundation%: {elem3.tx_foundation_pct} (816/816 = 1.0) [OK]")
-print(f"  Erection%:   {elem3.tx_erection_pct} (816/816 = 1.0) [OK]")
-print(f"  Stringing%:  {elem3.tx_stringing_pct} (524.24/628 = ~0.83) [OK]")
+print(f"  Foundation%: {elem3.tx_foundation_pct} (816/816 = 100.00%) [OK]")
+print(f"  Erection%:   {elem3.tx_erection_pct} (816/816 = 100.00%) [OK]")
+print(f"  Stringing%:  {elem3.tx_stringing_pct} (524.24/628 = ~83.48%) [OK]")
 
 
 # ── 4. MVA parsing ──
@@ -128,8 +135,8 @@ elements = [
     ),
     TransmissionElement(
         transmission_scope="3x1500MVA ,765/400kV GIS substation at Narela",
-        ss_civil_work_pct=1.0, ss_equipment_received_pct=1.0,
-        ss_equipment_erected_pct=1.0,
+        ss_civil_work_pct="100%", ss_equipment_received_pct="100%",
+        ss_equipment_erected_pct="100%",
         original_scod="Nov-23", anticipated_scod="Dec - 25",
     ),
 ]

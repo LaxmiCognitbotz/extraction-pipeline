@@ -119,7 +119,7 @@ def run_pipeline(
             "model": settings.model_name,
         },
         "elements": [
-            elem.model_dump(mode="json") for elem in result.elements
+            elem.model_dump(mode="json", by_alias=True) for elem in result.elements
         ],
     }
 

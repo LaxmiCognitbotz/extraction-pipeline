@@ -51,10 +51,11 @@ Rules:
 - For child rows, leave transmission_scheme empty (post-processing handles inheritance).
 - Substations/ICTs: fill ss_civil_work_pct, ss_equipment_received_pct, ss_equipment_erected_pct. Leave tx_* fields null.
 - Transmission lines: fill tx_length, tx_location, tx_foundation, tx_erection, tx_stringing. Leave ss_* fields null.
-- Percentages: convert "92%" to 0.92, "100%" to 1.0.
+- Percentages: extract exactly as written (e.g., '92.00%'). Do NOT convert to decimal.
 - MVA: compute total from scope text. "3x1500MVA" → 4500. Only for substations/ICTs.
 - If a value is missing, use null for numbers, "" for strings.
 - Do NOT hallucinate. Extract only what is present.
+- Do NOT extract summary rows, grand totals, or headers (e.g., "PGCIL", "Private TSPs", "Total", "Grand Total"). Extract ONLY actual transmission elements.
 - Leave element_code, inter_intra_tx_element, status, source, tx_foundation_pct, tx_erection_pct, tx_stringing_pct empty/null — they are computed by post-processing.
 - Extract ALL rows. Completeness is critical.
 """
