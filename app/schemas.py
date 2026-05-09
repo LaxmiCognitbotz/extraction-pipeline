@@ -145,7 +145,11 @@ class TransmissionElement(BaseModel):
     )
     tentative_scod: str = Field(
         "", alias="Tentative SCOD",
-        description="Tentative SCOD. Leave empty if not mentioned.",
+        description=(
+            "Leave this completely empty unless there is explicitly a "
+            "column named EXACTLY 'Tentative SCOD'. Do NOT put 'Original SCOD' "
+            "or 'Anticipated SCOD' here."
+        )
     )
     awarded_to: str = Field(
         "", alias="Awarded To",
@@ -161,8 +165,9 @@ class TransmissionElement(BaseModel):
     spv_transfer_date: str = Field(
         "", alias="SPV Transfer Date",
         description=(
-            "Date of transfer of SPV, in MMM-YY format. "
-            "Examples: 'May-22', 'Mar-23'. Extract from the parent row."
+            "Date of transfer of SPV or Award Date. "
+            "Look for a column like 'SPV Transfer/ Award Date'. "
+            "Examples: 'May-22', 'Mar-23', 'Sep-23'. Extract from the parent row."
         ),
     )
     tx_length: Optional[float] = Field(

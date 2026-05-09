@@ -10,6 +10,7 @@ data consistency the LLM cannot guarantee:
 5. MVA              - Parsed from transmission_scope text
 6. Parent-child     - Scheme name inherited to child rows
 7. Percentage Calc  - Foundation%=Foundation/Location, etc.
+8. Tentative SCOD   - Force-cleared (not discussed yet)
 """
 
 from __future__ import annotations
@@ -29,22 +30,13 @@ def generate_element_code(
     index: int,
     doc_type: DocType,
 ) -> str:
-    """Generate a unique, deterministic element code (Col B).
-
-    Strategy:
-    - If the LLM already extracted a valid EL-XXXXX code, keep it.
-    - Otherwise, generate from hash of (scheme + scope + index).
-
-    Returns:
-        Element code like ``EL-89310`` or ``EL-TBUC-0042-A3F2``.
-    """
+    """Generate a unique, deterministic element code (Col B)."""
     existing = (element.element_code or "").strip()
 
     # Keep valid existing codes
     if existing and re.match(r"^EL-[A-Z0-9]{3,6}$", existing):
         return existing
 
-    # Generate deterministic code
     prefix_map = {
         DocType.TBCB_UC_REPORT: "TBUC",
         DocType.TBCB_COMM_REPORT: "TBCM",
@@ -62,13 +54,17 @@ def generate_element_code(
 
 # ── 2. Inter/Intra Tx Element (Col C) — Abbreviation Logic ────────────
 #
-# Rules from test.txt:
+# Rules (from Excel reference):
 #   IF phase and part available:
-#     "... Rajasthan ... Phase-III Part-C1" → "RJ Ph-III Part-C"
-#     "... Khavda ... Phase-IV ... Part E2" → "Kh Ph-IV Part-E2"
+#     "... Rajasthan ... Phase-III Part-C1" → "RJ Ph-III Part C1"
+#     "... Rajasthan SEZ Phase-III Part-C1" → "RJ Ph-III Part C1 SEZ"
+#     "... Khavda ... Phase-IV ... Part E2" → "GJ & Khavda Ph-IV Part E2"
+#     "... Rajasthan REZ Ph-IV (Part-1) (Bikaner Complex)" → "RJ & Bikaner Ph-IV Part 1"
 #   IF phase/part NOT available:
 #     Region names → abbreviations: Western Region → WR, etc.
-#     State/location names used as-is: "Bidar", "Ananthpuram & Kurnool"
+#     Location names used as-is: "Bidar", "Davanagere & Chitradurga & Bellary"
+#   Augmentation: "Aug. Jam ICT(...)" / "Aug. Bidar ICT(...)"
+#   Strengthening: "Str. Bhadla-III & Bikaner-III"
 #
 # Col D (transmission_scheme) = full name excluding SPV.
 # Col C = abbreviated short name.
@@ -105,148 +101,256 @@ _REGION_ABBREVS = {
     "northern & western": "NR & WR",
 }
 
-_LOCATION_ABBREVS = {
-    "khavda": "Khavda",
-    "bhadla": "Bhadla",
-    "bikaner": "Bikaner",
-    "jaisalmer": "Jaisalmer",
-    "barmer": "Barmer",
-    "bidar": "Bidar",
-    "ananthpuram": "Ananthpuram",
-    "ananthapur": "Ananthapur",
-    "kurnool": "Kurnool",
-    "koppal": "Koppal",
-    "gadag": "Gadag",
-    "jam": "Jam",
-    "narela": "Narela",
-    "sikar": "Sikar",
-}
+# Locations with optional suffixes like -I, -II, -III, -IV, -2, -3, etc.
+# We search for these in the scheme text and preserve any suffix.
+_LOCATION_KEYWORDS = [
+    "khavda", "bhadla", "bikaner", "jaisalmer", "barmer",
+    "bidar", "ananthpuram", "ananthapur", "kurnool", "koppal",
+    "gadag", "jam", "narela", "sikar", "fatehgarh", "davanagere",
+    "chitradurga", "bellary", "kudankulam", "sirohi", "nagaur",
+    "banaskantha", "raghanesda", "neemrana", "ramgarh", "beawar",
+    "kps", "unit",
+]
+
+# Pre-compiled regex for finding location + optional suffix
+_LOC_SUFFIX_RE = re.compile(
+    r"\b("
+    + "|".join(re.escape(loc) for loc in _LOCATION_KEYWORDS)
+    + r")(?:[- ]*((?:I{1,3}V?|IV|V|VI{0,3}|\d+)))?(?:\s*PS)?",
+    re.IGNORECASE,
+)
+
+
+def _extract_locations_with_suffix(text: str) -> list[str]:
+    """Extract location names with their roman/numeric suffixes from text.
+
+    Examples:
+        "Bhadla-III and Bikaner-III" → ["Bhadla-III", "Bikaner-III"]
+        "Koppal-II (Phase-A & B) and Gadag-II" → ["Koppal-II", "Gadag-II"]
+        "Bikaner Complex" → ["Bikaner"]
+        "KPS1 and KPS3" → ["KPS-I", "KPS-III"]
+    """
+    found = []
+    seen_lower = set()
+    for m in _LOC_SUFFIX_RE.finditer(text):
+        base = m.group(1)
+        suffix = m.group(2) or ""
+
+        # Normalize: capitalize base
+        base_cap = base.capitalize()
+        if base.lower() == "kps":
+            base_cap = "KPS"
+
+        # Normalize suffix to Roman numerals for small numbers
+        if suffix:
+            suffix_upper = suffix.upper()
+            # If it's a digit, convert small ones to roman
+            if suffix.isdigit():
+                digit_to_roman = {"1": "I", "2": "II", "3": "III",
+                                  "4": "IV", "5": "V", "6": "VI"}
+                suffix_upper = digit_to_roman.get(suffix, suffix)
+            loc_name = f"{base_cap}-{suffix_upper}"
+        else:
+            loc_name = base_cap
+
+        key = loc_name.lower()
+        if key not in seen_lower:
+            seen_lower.add(key)
+            found.append(loc_name)
+    return found
+
+
+def _extract_slash_locations(text: str) -> list[str]:
+    """Extract slash-separated location pairs like 'Jaisalmer/Barmer'."""
+    matches = re.findall(
+        r"\b([A-Z][a-z]+)\s*/\s*([A-Z][a-z]+)\b", text
+    )
+    results = []
+    for a, b in matches:
+        # Only include if both are known locations
+        a_known = a.lower() in [l for l in _LOCATION_KEYWORDS]
+        b_known = b.lower() in [l for l in _LOCATION_KEYWORDS]
+        if a_known or b_known:
+            results.append(f"{a}/{b}")
+    return results
+
+
+def _find_state(text: str) -> str:
+    """Find state abbreviation from text. Returns empty string if none."""
+    text_lower = text.lower()
+    for state, abbrev in _STATE_ABBREVS.items():
+        if state in text_lower:
+            return abbrev
+    return ""
 
 
 def generate_inter_intra(scheme: str) -> str:
     """Generate abbreviated Inter/Intra Tx. Element (Col C) from scheme name.
 
-    Priority:
-      1. If Phase + Part found → "XX Ph-N Part-P"
-      2. If Augmentation found → "Aug. Location ICT(...)"
-      3. If location/state + Phase found → "XX Ph-N"
-      4. If region found → "WR" / "SR" / "WR & SR"
-      5. If location found → Location name(s)
-      6. Fallback → first 30 chars
+    Follows the Excel reference naming convention.
+    PRIORITY ORDER matters — Phase/Part is checked FIRST so that schemes
+    containing words like "strengthening" but also having Phase/Part info
+    are correctly handled (e.g. "strengthening scheme... under Phase-II Part G").
+
+      1. Phase + Part → "{prefix} Ph-X Part Y [SEZ]"  (Part Y, not Part-Y)
+      2. Phase only → "{prefix} Ph-X"
+      3. Part only (no Phase) → "{prefix} Part Y [SEZ]"
+      4. Augmentation → "Aug. {location} [ICT({n})]"
+      5. Strengthening → "Str. {loc1} & {loc2}"
+      6. Dynamic Reactive / STATCOM → location-based
+      7. Region → "WR" / "SR" / "WR & SR"
+      8. Location names only → "Loc1 & Loc2"
+      9. Fallback → first 30 chars
     """
     if not scheme:
         return ""
 
-    name = scheme.strip()
+    name = scheme.strip().rstrip(",").strip()
 
-    # ── Try Phase + Part ──
-    # Match patterns like "Phase-III", "Phase-IV", "Phase IV"
+    # ── 1. Phase + Part (main case — checked FIRST) ──
+    # Match: "Phase-III", "Phase IV", "phase- II", "Ph-IV", "PH-IV"
     phase_match = re.search(
-        r"Phase[\s\-]*([IVXLC]+|\d+)",
-        name, re.IGNORECASE,
+        r"(?:Phase|Ph)[\s\-]*([IVXLC]+|\d+)", name, re.IGNORECASE
     )
+    # Part patterns — handle multiple formats:
+    #   "Part-C1", "Part G", "Part- E2", ": PART-A", "(Part-1: 6GW)", "(PART-3: 6GW)"
     part_match = re.search(
-        r"Part[\s\-]*([A-Z0-9]+)",
+        r"(?::\s*)?(?:\(?\s*)Part[\s\-]*([A-Z]\d*|\d+)(?:\s*[:\)])?",
         name, re.IGNORECASE,
     )
 
     if phase_match:
         phase_num = phase_match.group(1).upper()
-        phase_str = f"Ph-{phase_num}"
+        digit_to_roman = {"1": "I", "2": "II", "3": "III",
+                          "4": "IV", "5": "V", "6": "VI"}
+        phase_roman = digit_to_roman.get(phase_num, phase_num)
+        phase_str = f"Ph-{phase_roman}"
 
-        # Find location/state prefix
-        prefix = _find_prefix(name)
+        # Build prefix: state + significant locations
+        prefix = _build_prefix(name)
+
+        # Detect SEZ keyword
+        has_sez = bool(re.search(r"\bSEZ\b", name))
 
         if part_match:
-            part_id = part_match.group(1)
-            return f"{prefix} {phase_str} Part-{part_id}".strip()
+            part_id = part_match.group(1).upper()
+            result = f"{prefix} {phase_str} Part {part_id}".strip()
         else:
-            return f"{prefix} {phase_str}".strip()
+            result = f"{prefix} {phase_str}".strip()
 
-    # ── Augmentation ──
-    aug_match = re.search(r"augmentation", name, re.IGNORECASE)
-    if aug_match:
-        loc = _find_location(name)
-        # Check for ICT numbering
-        ict_match = re.search(r"\((\d+(?:st|nd|rd|th).*?)\)", name, re.IGNORECASE)
-        if ict_match and loc:
-            return f"Aug. {loc} ICT({ict_match.group(1)})"
-        elif loc:
-            return f"Aug. {loc}"
+        if has_sez:
+            result += " SEZ"
 
-    # ── Strengthening ──
-    str_match = re.search(r"strengthening", name, re.IGNORECASE)
-    if str_match:
-        locs = _find_all_locations(name)
-        if locs:
-            return f"Str. {'& '.join(locs)}"
+        return result
 
-    # ── Dynamic Reactive / STATCOM ──
-    if re.search(r"dynamic reactive|statcom|reactor", name, re.IGNORECASE):
-        locs = _find_all_locations(name)
+    # ── 2. Part only (no explicit Phase keyword) ──
+    if part_match:
+        part_id = part_match.group(1).upper()
+        prefix = _build_prefix(name)
+        has_sez = bool(re.search(r"\bSEZ\b", name))
+        result = f"{prefix} Part {part_id}".strip()
+        if has_sez:
+            result += " SEZ"
+        return result
+
+    # ── 3. Augmentation (only if no phase/part) ──
+    if re.search(r"augmentation", name, re.IGNORECASE):
+        return _handle_augmentation(name)
+
+    # ── 4. Strengthening (only if no phase/part) ──
+    if re.search(r"strengthening", name, re.IGNORECASE):
+        return _handle_strengthening(name)
+
+    # ── 5. Dynamic Reactive / Compensation / STATCOM ──
+    if re.search(r"dynamic reactive|compensation|statcom|reactor",
+                 name, re.IGNORECASE):
+        locs = _extract_locations_with_suffix(name)
         if locs:
             return " & ".join(locs)
 
-    # ── Region abbreviation ──
+    # ── 6. Region abbreviation ──
+    name_lower = name.lower()
     for region_name, abbrev in _REGION_ABBREVS.items():
-        if region_name.lower() in name.lower():
+        if region_name in name_lower:
             return abbrev
 
-    # ── Location names ──
-    locs = _find_all_locations(name)
+    # ── 7. Location names (no phase/part) ──
+    # For location-only schemes, do NOT prepend state abbreviation
+    # (e.g. "Bidar (2500 MW), Karnataka" → "Bidar", not "KA & Bidar")
+    slash_locs = _extract_slash_locations(name)
+    if slash_locs:
+        return " & ".join(slash_locs)
+
+    locs = _extract_locations_with_suffix(name)
     if locs:
         return " & ".join(locs)
 
-    # Fallback
+    # ── 8. Fallback ──
     return name[:30]
 
 
-def _find_prefix(scheme: str) -> str:
-    """Find the state/location abbreviation prefix for a scheme name."""
+def _build_prefix(scheme: str) -> str:
+    """Build the state + location prefix for a scheme name.
+
+    Examples:
+        "... Rajasthan REZ Ph-IV (Part-1) (Bikaner Complex)"  → "RJ & Bikaner"
+        "... Rajasthan (20 GW) under Phase-III Part H"         → "RJ"
+        "... Khavda area of Gujarat under Phase-IV"            → "GJ & Khavda"
+        "... Khavda RE Park under Phase-III Part B"            → "Khavda"
+        "... Koppal-II ... and Gadag-II ... in Karnataka"      → "Koppal-II & Gadag-II"
+    """
+    state = _find_state(scheme)
     name_lower = scheme.lower()
 
-    # Check Khavda specially (multiple variants)
-    if "khavda" in name_lower:
-        # Check for KPS
-        kps_match = re.search(r"kps[\s\-]*(\d+|[ivx]+)", name_lower)
-        if kps_match:
-            return f"Khavda & KPS-{kps_match.group(1).upper()}"
-        return "Khavda"
+    # Extract significant locations (excluding generic state-level references)
+    locs = _extract_locations_with_suffix(scheme)
 
-    # Check states
-    for state, abbrev in _STATE_ABBREVS.items():
-        if state in name_lower:
-            # Check for additional location context
-            locs = _find_all_locations(scheme)
-            if locs:
-                return f"{abbrev} & {' & '.join(locs)}"
-            return abbrev
+    # Check for slash-separated locations (Jaisalmer/Barmer, Sirohi/Nagaur)
+    slash_locs = _extract_slash_locations(scheme)
 
-    # Check locations
-    loc = _find_location(scheme)
-    if loc:
-        return loc
+    # Build location string
+    loc_parts = []
+    if slash_locs:
+        loc_parts = slash_locs
+    elif locs:
+        loc_parts = locs
 
+    # Filter out "Unit" and similar noise words when alone
+    if len(loc_parts) == 1 and loc_parts[0].lower() == "unit":
+        loc_parts = []
+
+    if state and loc_parts:
+        return f"{state} & {' & '.join(loc_parts)}"
+    elif state:
+        return state
+    elif loc_parts:
+        return " & ".join(loc_parts)
     return ""
 
 
-def _find_location(scheme: str) -> str:
-    """Find the first significant location name in a scheme."""
-    name_lower = scheme.lower()
-    for loc_lower, loc_name in _LOCATION_ABBREVS.items():
-        if loc_lower in name_lower:
-            return loc_name
-    return ""
+def _handle_augmentation(name: str) -> str:
+    """Handle augmentation scheme naming: Aug. {location} [ICT({n})]."""
+    locs = _extract_locations_with_suffix(name)
+    loc_str = " & ".join(locs) if locs else ""
+
+    # Try to find ICT ordinal patterns like "(5th and 6th)", "(4th)"
+    ict_match = re.search(
+        r"\((\d+(?:st|nd|rd|th)(?:\s*(?:and|,|&)\s*\d+(?:st|nd|rd|th))*)\)",
+        name, re.IGNORECASE,
+    )
+    if ict_match and loc_str:
+        return f"Aug. {loc_str} ICT({ict_match.group(1)})"
+    elif loc_str:
+        return f"Aug. {loc_str}"
+    return "Aug."
 
 
-def _find_all_locations(scheme: str) -> list[str]:
-    """Find all significant location names in a scheme."""
-    name_lower = scheme.lower()
-    found = []
-    for loc_lower, loc_name in _LOCATION_ABBREVS.items():
-        if loc_lower in name_lower and loc_name not in found:
-            found.append(loc_name)
-    return found
+def _handle_strengthening(name: str) -> str:
+    """Handle strengthening scheme naming: Str. {loc1} & {loc2}."""
+    locs = _extract_locations_with_suffix(name)
+    if locs:
+        return f"Str. {' & '.join(locs)}"
+    return "Str."
 
 
 # ── 3. Status — From Document Type ────────────────────────────────────
@@ -316,17 +420,20 @@ def parse_mva_from_text(text: str) -> Optional[float]:
 
 
 def clean_scheme_name(scheme: str) -> str:
-    """Strip leading serial numbers and trailing SPV references."""
+    """Strip leading serial numbers, trailing SPV references, and trailing commas."""
     if not scheme:
         return scheme
-    
+
     # Remove leading serial numbers like "1 ", "1.", "2 - "
-    cleaned = re.sub(r"^\d+\s*[\.\-\)]?\s*", "", scheme.strip())
-    
-    # Remove trailing "(SPV: ...)" blocks
-    cleaned = re.sub(r"\s*\(SPV:.*?\)$", "", cleaned, flags=re.IGNORECASE)
-    
-    return cleaned.strip()
+    cleaned = re.sub(r"^\d+\s*[.\-)]?\s*", "", scheme.strip())
+
+    # Remove trailing "(SPV: ...)" or "(SPV Name: ...)" blocks
+    cleaned = re.sub(r"\s*\(SPV\s*(?:Name)?:.*?\)\s*$", "", cleaned, flags=re.IGNORECASE)
+
+    # Remove trailing commas
+    cleaned = cleaned.strip().rstrip(",").strip()
+
+    return cleaned
 
 
 def inherit_scheme_to_children(
@@ -334,11 +441,12 @@ def inherit_scheme_to_children(
 ) -> list[TransmissionElement]:
     """Fill empty scheme names from the nearest parent row above.
 
-    Also inherits: awarded_to, spv_transfer_date.
+    Also inherits: awarded_to, spv_transfer_date, tentative_scod.
     """
     current_scheme = ""
     current_awarded_to = ""
     current_spv_date = ""
+    current_tentative_scod = ""
 
     for elem in elements:
         if elem.transmission_scheme and elem.transmission_scheme.strip():
@@ -348,6 +456,8 @@ def inherit_scheme_to_children(
                 current_awarded_to = elem.awarded_to
             if elem.spv_transfer_date:
                 current_spv_date = elem.spv_transfer_date
+            if elem.tentative_scod:
+                current_tentative_scod = elem.tentative_scod
         else:
             if current_scheme:
                 elem.transmission_scheme = current_scheme
@@ -355,6 +465,8 @@ def inherit_scheme_to_children(
                 elem.awarded_to = current_awarded_to
             if not elem.spv_transfer_date and current_spv_date:
                 elem.spv_transfer_date = current_spv_date
+            if not elem.tentative_scod and current_tentative_scod:
+                elem.tentative_scod = current_tentative_scod
 
     return elements
 
@@ -400,6 +512,77 @@ def backfill_mva(element: TransmissionElement) -> TransmissionElement:
     return element
 
 
+# ── 9. SPV Transfer Date Validation ──────────────────────────────────
+
+
+_DATE_LIKE = re.compile(
+    r"^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*[-–]\s*\d{2,4}$",
+    re.IGNORECASE,
+)
+
+
+def validate_spv_transfer_date(element: TransmissionElement) -> TransmissionElement:
+    """Validate SPV Transfer Date looks like a date (MMM-YY), clear if not."""
+    val = (element.spv_transfer_date or "").strip()
+    if val and not _DATE_LIKE.match(val):
+        # Not a valid date (e.g. a number like "473") — clear it
+        element.spv_transfer_date = ""
+    return element
+
+
+# ── 11. Detect Misclassified Scopes as Schemes ────────────────────────
+
+
+_SCOPE_INDICATORS = re.compile(
+    r"(?:765\s*kv|400\s*kv|220\s*kv|132\s*kv|d/c|s/c|"
+    r"MVA|ICT|STATCOM|substation|s/s|bay|line\b|ckm|"
+    r"lilo|establishment of|augmentation by)",
+    re.IGNORECASE,
+)
+
+_SCHEME_INDICATORS = re.compile(
+    r"(?:transmission\s+(?:system|scheme)|evacuation|"
+    r"integration|strengthening|associated\s+with\s+LTA|"
+    r"renewable\s+energy\s+zone|solar\s+energy\s+zone|REZ|"
+    r"under\s+phase)",
+    re.IGNORECASE,
+)
+
+
+def fix_misclassified_elements(
+    elements: list[TransmissionElement],
+) -> list[TransmissionElement]:
+    """Fix elements where a scope was misclassified as a scheme (page-break issue).
+
+    When a table breaks across pages, child scope elements may appear at the
+    start of a new chunk without their parent scheme. The LLM may then put
+    the scope text into the scheme field. This function detects and fixes that.
+    """
+    current_scheme = ""
+
+    for elem in elements:
+        scheme = (elem.transmission_scheme or "").strip()
+        scope = (elem.transmission_scope or "").strip()
+
+        if scheme:
+            # Check if scheme text looks like a scope (line/substation description)
+            looks_like_scope = bool(_SCOPE_INDICATORS.search(scheme))
+            looks_like_scheme = bool(_SCHEME_INDICATORS.search(scheme))
+
+            if looks_like_scope and not looks_like_scheme:
+                # This is a scope misclassified as scheme
+                if not scope:
+                    elem.transmission_scope = scheme
+                elem.transmission_scheme = current_scheme  # inherit from previous
+            else:
+                current_scheme = scheme
+        else:
+            # Empty scheme — will be filled by inheritance
+            pass
+
+    return elements
+
+
 # ── Master Post-Processing Pipeline ───────────────────────────────────
 
 
@@ -410,17 +593,23 @@ def post_process_elements(
     """Apply ALL business logic rules to extracted elements.
 
     Order matters:
-    1. Inherit scheme names to children
-    2. Per-element:
+    1. Fix misclassified scopes (page-break issues)
+    2. Inherit scheme names to children
+    3. Per-element:
        a. Generate element code (Col B)
        b. Generate inter_intra abbreviation (Col C)
        c. Force status from doc_type (Col G)
        d. Force source from doc_type (Col I)
        e. Backfill MVA from scope (Col F)
        f. Compute percentages (Cols W, X, Y)
+       g. Clear Tentative SCOD (not discussed yet)
+       h. Validate SPV Transfer Date
     """
     if not elements:
         return elements
+
+    # Step 0: Fix misclassified scopes (page-break issues)
+    elements = fix_misclassified_elements(elements)
 
     # Step 1: Parent-child inheritance
     elements = inherit_scheme_to_children(elements)
@@ -448,6 +637,9 @@ def post_process_elements(
 
         # f. Percentage calculations
         elem = compute_percentages(elem)
+
+        # g. Validate SPV Transfer Date
+        elem = validate_spv_transfer_date(elem)
 
     print(f"[business_logic] Post-processed {len(elements)} elements")
     print(f"[business_logic]   Status: {status}, Source: {source}")

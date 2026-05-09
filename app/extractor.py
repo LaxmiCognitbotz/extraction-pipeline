@@ -43,8 +43,29 @@ You are a data extraction agent for Indian power transmission reports (CEA/CTUIL
 You receive CSV-formatted table data extracted from TBCB or RTM monthly progress reports.
 
 The tables have a parent-child structure:
-- Parent rows: numbered (1, 2, 3…), contain transmission scheme/project name, executing agency, SPV transfer date, original/anticipated SCOD.
+- Parent rows: numbered (1, 2, 3…), contain the FULL transmission scheme/project name
+  (e.g. "Transmission system for evacuation of power from REZ in Rajasthan (20GW) under Phase-III Part F"),
+  executing agency, SPV Transfer Date, original/anticipated SCOD.
 - Child rows: specific elements (lines, substations, ICTs, bays) with physical progress and remarks.
+
+CRITICAL — Distinguishing Scheme vs Scope:
+- transmission_scheme = FULL project/scheme name. Always starts with words like
+  "Transmission system/scheme for...", "Augmentation of...", "System Strengthening...",
+  "Establishment of...". These are long descriptive project names.
+- transmission_scope  = SPECIFIC element being constructed. Examples:
+  "Fatehgarh3– Beawar 765kV D/C line", "2x1500MVA, 765/400KV GIS substation at Narela",
+  "LILO of both circuits of ...", "2x300 MVAr Statcom at ...".
+  These describe physical assets (lines, substations, ICTs, bays).
+- If a text mentions kV lines, MVA substations, D/C, S/C, LILO, ICT, bay, STATCOM
+  → it is a SCOPE, NOT a scheme. Never put scope text in the scheme field.
+
+CRITICAL — Page Breaks:
+- Tables span multiple pages. A scheme (parent row) may appear at the BOTTOM of one
+  page, and its child scope rows continue at the TOP of the next page/table.
+- If the first rows in a chunk have NO parent scheme row above them, they are
+  continuation children from the previous page. Leave their transmission_scheme EMPTY.
+  Post-processing will inherit the correct scheme.
+- NEVER invent or guess a scheme name. If unsure, leave transmission_scheme empty.
 
 Rules:
 - Extract every row as one TransmissionElement.
@@ -57,6 +78,10 @@ Rules:
 - Do NOT hallucinate. Extract only what is present.
 - Do NOT extract summary rows, grand totals, or headers (e.g., "PGCIL", "Private TSPs", "Total", "Grand Total"). Extract ONLY actual transmission elements.
 - Leave element_code, inter_intra_tx_element, status, source, tx_foundation_pct, tx_erection_pct, tx_stringing_pct empty/null — they are computed by post-processing.
+- Tentative SCOD: ALWAYS extract this from the parent row. Look for column named exactly "Tentative SCOD". Format: "MMM-YY".
+- SPV Transfer Date: ALWAYS extract this from the parent row. Look for columns like
+  "SPV Transfer/ Award Date" or "Date of Transfer of SPV". Format: "MMM-YY" (e.g. "Sep-23", "Dec-23").
+  Inherit to all child rows under the same scheme.
 - Extract ALL rows. Completeness is critical.
 """
 
@@ -105,6 +130,9 @@ def _build_user_message(
     doc_type: DocType,
     region: str = "",
     chunk_info: str = "",
+    last_known_scheme: str = "",
+    last_known_spv_date: str = "",
+    last_known_tentative_scod: str = "",
 ) -> str:
     """Build user message with doc-type header and table data."""
     header = f"DOC_TYPE: {doc_type.value}"
@@ -112,6 +140,22 @@ def _build_user_message(
         header += f"\nREGION: {region}"
     if chunk_info:
         header += f"\n{chunk_info}"
+    if last_known_scheme:
+        header += f"\nLAST_KNOWN_TRANSMISSION_SCHEME_FROM_PREV_PAGE: '{last_known_scheme}'"
+        header += (
+            "\nIMPORTANT: If the first rows in this chunk have NO parent scheme row "
+            "(no numbered row with a full scheme name like 'Transmission system for...'), "
+            "they are CONTINUATION children from the previous page. "
+            "Set their transmission_scheme to the LAST_KNOWN_TRANSMISSION_SCHEME above. "
+            "Do NOT put their scope text (e.g. line/substation descriptions) into the "
+            "transmission_scheme field."
+        )
+    if last_known_spv_date:
+        header += f"\nLAST_KNOWN_SPV_TRANSFER_DATE: '{last_known_spv_date}'"
+        header += "\nINSTRUCTION: If child rows have no SPV Transfer Date, use this value."
+    if last_known_tentative_scod:
+        header += f"\nLAST_KNOWN_TENTATIVE_SCOD: '{last_known_tentative_scod}'"
+        header += "\nINSTRUCTION: If child rows have no Tentative SCOD, use this value."
     return f"{header}\n\n{content}"
 
 
@@ -125,11 +169,14 @@ def _extract_chunk(
     total_chunks: int,
     doc_type: DocType,
     region: str = "",
+    last_known_scheme: str = "",
+    last_known_spv_date: str = "",
+    last_known_tentative_scod: str = "",
 ) -> list[TransmissionElement]:
     """Extract elements from one chunk with transport-level retries."""
     chunk_info = f"CHUNK: {chunk_index} of {total_chunks}"
     user_message = _build_user_message(
-        chunk_text, doc_type, region, chunk_info
+        chunk_text, doc_type, region, chunk_info, last_known_scheme, last_known_spv_date, last_known_tentative_scod
     )
 
     max_retries = 3
@@ -202,6 +249,10 @@ def extract_from_corpus(
     agent = _get_agent()
     all_elements: list[TransmissionElement] = []
     start_time = time.time()
+    
+    last_known_scheme = ""
+    last_known_spv_date = ""
+    last_known_tentative_scod = ""
 
     for i, chunk in enumerate(chunks, 1):
         if not chunk.strip():
@@ -210,9 +261,25 @@ def extract_from_corpus(
 
         try:
             elems = _extract_chunk(
-                agent, chunk, i, total_chunks, doc_type, region
+                agent, chunk, i, total_chunks, doc_type, region,
+                last_known_scheme, last_known_spv_date, last_known_tentative_scod
             )
             all_elements.extend(elems)
+            
+            # Update last_known_scheme and last_known_spv_date for the next chunk
+            for elem in reversed(elems):
+                if elem.transmission_scheme and elem.transmission_scheme.strip():
+                    last_known_scheme = elem.transmission_scheme.strip()
+                    break
+            for elem in reversed(elems):
+                if elem.spv_transfer_date and elem.spv_transfer_date.strip():
+                    last_known_spv_date = elem.spv_transfer_date.strip()
+                    break
+            for elem in reversed(elems):
+                if elem.tentative_scod and elem.tentative_scod.strip():
+                    last_known_tentative_scod = elem.tentative_scod.strip()
+                    break
+                    
             print(f"[extractor]   [{i}/{total_chunks}] -> {len(elems)} elements")
         except Exception as e:
             print(f"[extractor]   [{i}/{total_chunks}] [ERR] {e}")
