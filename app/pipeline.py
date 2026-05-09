@@ -30,15 +30,9 @@ def _infer_doc_type(pdf_name: str) -> DocType:
         return DocType.RTM_UC_REPORT
     if "nct" in name_lower:
         return DocType.NCT_REPORT
-    if re.search(
-        r"commission|completed|_comm[_.\s]|^comm_|tbcb_comm|comm_tbcb",
-        name_lower,
-    ):
+    if re.search(r"commis|completed|\bcomm\b|_comm|^comm|comm_|-comm|comm-", name_lower):
         return DocType.TBCB_COMM_REPORT
-    if re.search(
-        r"_uc[_.\s]|^uc_|_uc$|tbcb.*uc|uc.*tbcb|tbcb_uc|uc_tbcb",
-        name_lower,
-    ):
+    if re.search(r"\buc\b|_uc|^uc|uc_|-uc|uc-", name_lower):
         return DocType.TBCB_UC_REPORT
 
     raise ValueError(
