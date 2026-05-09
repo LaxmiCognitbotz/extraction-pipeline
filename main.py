@@ -138,7 +138,7 @@ def main() -> None:
                 "framework": "pydantic-ai",
             },
             "elements": [
-                elem.model_dump(mode="json") for elem in result.elements
+                elem.to_nested_dict() for elem in result.elements
             ],
         }
 

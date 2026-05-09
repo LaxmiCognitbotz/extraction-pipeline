@@ -261,6 +261,31 @@ class TransmissionElement(BaseModel):
         ),
     )
 
+    def to_nested_dict(self) -> dict:
+        """Convert the element to a nested dictionary for easier JSON reading."""
+        flat = self.model_dump(mode="json", by_alias=True)
+        nested = {}
+        
+        tx_line_keys = [
+            "Length", "Location", "Foundation", "Erection", 
+            "Stringing", "Foundation (%)", "Erection (%)", "Stringing (%)"
+        ]
+        ss_keys = ["Civil Work (%)", "Equipment Received (%)", "Equipment Erected (%)"]
+        
+        for k, v in flat.items():
+            if k in tx_line_keys:
+                if "Physical Progress S/s of Tx. Line" not in nested:
+                    nested["Physical Progress S/s of Tx. Line"] = {}
+                nested["Physical Progress S/s of Tx. Line"][k] = v
+            elif k in ss_keys:
+                if "Physical Progress Substation" not in nested:
+                    nested["Physical Progress Substation"] = {}
+                nested["Physical Progress Substation"][k] = v
+            else:
+                nested[k] = v
+                
+        return nested
+
 
 # ── Extraction Result Wrapper (Internal) ──────────────────────────────
 

@@ -146,16 +146,16 @@ def _build_user_message(
             "\nIMPORTANT: If the first rows in this chunk have NO parent scheme row "
             "(no numbered row with a full scheme name like 'Transmission system for...'), "
             "they are CONTINUATION children from the previous page. "
-            "Set their transmission_scheme to the LAST_KNOWN_TRANSMISSION_SCHEME above. "
+            "Leave their transmission_scheme EMPTY. "
             "Do NOT put their scope text (e.g. line/substation descriptions) into the "
             "transmission_scheme field."
         )
     if last_known_spv_date:
         header += f"\nLAST_KNOWN_SPV_TRANSFER_DATE: '{last_known_spv_date}'"
-        header += "\nINSTRUCTION: If child rows have no SPV Transfer Date, use this value."
+        header += "\nINSTRUCTION: If child rows have no SPV Transfer Date, leave it EMPTY (handled by post-processing)."
     if last_known_tentative_scod:
         header += f"\nLAST_KNOWN_TENTATIVE_SCOD: '{last_known_tentative_scod}'"
-        header += "\nINSTRUCTION: If child rows have no Tentative SCOD, use this value."
+        header += "\nINSTRUCTION: If child rows have no Tentative SCOD, leave it EMPTY (handled by post-processing)."
     return f"{header}\n\n{content}"
 
 

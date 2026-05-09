@@ -115,7 +115,7 @@ def run_pipeline(
             "model": settings.model_name,
         },
         "elements": [
-            elem.model_dump(mode="json", by_alias=True) for elem in result.elements
+            elem.to_nested_dict() for elem in result.elements
         ],
     }
 
@@ -131,7 +131,8 @@ def run_pipeline(
         excels_dir.mkdir(parents=True, exist_ok=True)
         master_excel = excels_dir / "Element Status.xlsx"
         
-        new_df = pd.DataFrame(output_data["elements"])
+        flat_elements = [elem.model_dump(mode="json", by_alias=True) for elem in result.elements]
+        new_df = pd.DataFrame(flat_elements)
         
         if master_excel.exists():
             try:

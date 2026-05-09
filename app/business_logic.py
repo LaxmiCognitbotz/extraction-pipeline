@@ -441,32 +441,46 @@ def inherit_scheme_to_children(
 ) -> list[TransmissionElement]:
     """Fill empty scheme names from the nearest parent row above.
 
-    Also inherits: awarded_to, spv_transfer_date, tentative_scod.
+    Also inherits scheme-level attributes like awarded_to, project_cost, etc.
     """
-    current_scheme = ""
-    current_awarded_to = ""
-    current_spv_date = ""
-    current_tentative_scod = ""
+    current_state = {
+        "transmission_scheme": "",
+        "awarded_to": "",
+        "spv_transfer_date": "",
+        "tentative_scod": "",
+        "project_cost": "",
+        "original_scod": "",
+        "anticipated_scod": "",
+        "approval_nct": "",
+        "tender_issuing_authority": "",
+        "date_of_tender_issuance": "",
+        "date_of_bid_submission": "",
+        "execution_timeline": "",
+    }
 
     for elem in elements:
         if elem.transmission_scheme and elem.transmission_scheme.strip():
-            current_scheme = clean_scheme_name(elem.transmission_scheme)
-            elem.transmission_scheme = current_scheme
-            if elem.awarded_to:
-                current_awarded_to = elem.awarded_to
-            if elem.spv_transfer_date:
-                current_spv_date = elem.spv_transfer_date
-            if elem.tentative_scod:
-                current_tentative_scod = elem.tentative_scod
+            cleaned_scheme = clean_scheme_name(elem.transmission_scheme)
+            elem.transmission_scheme = cleaned_scheme
+            current_state["transmission_scheme"] = cleaned_scheme
+            
+            # Update state for any field that is present in this parent row
+            for field in current_state:
+                if field == "transmission_scheme":
+                    continue
+                val = getattr(elem, field, None)
+                if val:
+                    current_state[field] = val
         else:
-            if current_scheme:
-                elem.transmission_scheme = current_scheme
-            if not elem.awarded_to and current_awarded_to:
-                elem.awarded_to = current_awarded_to
-            if not elem.spv_transfer_date and current_spv_date:
-                elem.spv_transfer_date = current_spv_date
-            if not elem.tentative_scod and current_tentative_scod:
-                elem.tentative_scod = current_tentative_scod
+            if current_state["transmission_scheme"]:
+                elem.transmission_scheme = current_state["transmission_scheme"]
+            
+            for field, saved_val in current_state.items():
+                if field == "transmission_scheme":
+                    continue
+                current_val = getattr(elem, field, None)
+                if not current_val and saved_val:
+                    setattr(elem, field, saved_val)
 
     return elements
 
@@ -613,6 +627,14 @@ def post_process_elements(
 
     # Step 1: Parent-child inheritance
     elements = inherit_scheme_to_children(elements)
+
+    # Step 1.5: Filter out empty records (rows without a transmission scope)
+    # This prevents the generation of empty element records in the final JSON
+    valid_elements = []
+    for elem in elements:
+        if (elem.transmission_scope or "").strip():
+            valid_elements.append(elem)
+    elements = valid_elements
 
     status = get_status_for_doc_type(doc_type)
     source = get_source_for_doc_type(doc_type)

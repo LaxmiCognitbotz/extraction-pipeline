@@ -5,15 +5,15 @@ from app.business_logic import (
 )
 from app.schemas import DocType, TransmissionElement
 
-# Test 1: Tentative SCOD clearing
+# Test 1: Tentative SCOD preservation
 elem = TransmissionElement(
     transmission_scheme="Transmission system for evacuation of power from REZ in Rajasthan (20 GW) under Phase-III Part H",
     transmission_scope="2x1500MVA, 765/400KV Dausa S/s",
     tentative_scod="Jun - 26",
 )
 processed = post_process_elements([elem], DocType.TBCB_UC_REPORT)
-assert processed[0].tentative_scod == "", f"FAIL: Tentative SCOD should be empty, got: {processed[0].tentative_scod!r}"
-print("PASS: Tentative SCOD cleared")
+assert processed[0].tentative_scod == "Jun - 26", f"FAIL: Tentative SCOD should be preserved, got: {processed[0].tentative_scod!r}"
+print("PASS: Tentative SCOD preserved")
 
 # Test 2: SPV Transfer Date validation
 elem2 = TransmissionElement(spv_transfer_date="473")
