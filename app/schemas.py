@@ -170,35 +170,35 @@ class TransmissionElement(BaseModel):
             "Examples: 'May-22', 'Mar-23', 'Sep-23'. Extract from the parent row."
         ),
     )
-    tx_length: Optional[float] = Field(
+    tx_length: Union[int, float, None] = Field(
         None, alias="Length",
         description=(
             "Sanctioned length of transmission line in CKM. "
             "Example: 340, 628. Only for transmission lines."
         ),
     )
-    tx_location: Optional[float] = Field(
+    tx_location: Union[int, float, None] = Field(
         None, alias="Location",
         description=(
             "Total tower locations (number of towers sanctioned). "
             "Example: 463, 816. Only for transmission lines."
         ),
     )
-    tx_foundation: Optional[float] = Field(
+    tx_foundation: Union[int, float, None] = Field(
         None, alias="Foundation",
         description=(
             "Foundation completed (number of tower foundations done). "
-            "Only for transmission lines."
+            "Only for transmission lines. DO NOT extract from 'TF-CB (Nos)', ONLY extract from exact 'Foundation' column."
         ),
     )
-    tx_erection: Optional[float] = Field(
+    tx_erection: Union[int, float, None] = Field(
         None, alias="Erection",
         description=(
             "Erection completed (number of towers erected). "
-            "Only for transmission lines."
+            "Only for transmission lines. DO NOT extract from 'TE-CB (Nos)', ONLY extract from exact 'Erection' column."
         ),
     )
-    tx_stringing: Optional[float] = Field(
+    tx_stringing: Union[int, float, None] = Field(
         None, alias="Stringing",
         description=(
             "Stringing completed in CKM. "

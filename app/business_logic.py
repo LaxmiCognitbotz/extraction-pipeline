@@ -109,7 +109,8 @@ _LOCATION_KEYWORDS = [
     "gadag", "jam", "narela", "sikar", "fatehgarh", "davanagere",
     "chitradurga", "bellary", "kudankulam", "sirohi", "nagaur",
     "banaskantha", "raghanesda", "neemrana", "ramgarh", "beawar",
-    "kps", "unit",
+    "vindhyachal", "varanasi", "agra", "jaipur", "dausa", "fatehpur",
+    "sasaram", "prayagraj", "kps", "unit",
 ]
 
 # Pre-compiled regex for finding location + optional suffix
@@ -346,11 +347,25 @@ def _handle_augmentation(name: str) -> str:
 
 
 def _handle_strengthening(name: str) -> str:
-    """Handle strengthening scheme naming: Str. {loc1} & {loc2}."""
+    """Handle strengthening scheme naming: {Region/State} Str. {loc1} & {loc2}."""
+    # Check for explicit inter-regional tags like (NR-WR)
+    match = re.search(r"\(([A-Z]{2}-[A-Z]{2})\)", name, re.IGNORECASE)
+    if match:
+        region_str = match.group(1).upper()
+    else:
+        region_str = _find_state(name)
+        
     locs = _extract_locations_with_suffix(name)
-    if locs:
-        return f"Str. {' & '.join(locs)}"
-    return "Str."
+    loc_str = " & ".join(locs) if locs else ""
+    
+    parts = []
+    if region_str:
+        parts.append(region_str)
+    parts.append("Str.")
+    if loc_str:
+        parts.append(loc_str)
+        
+    return " ".join(parts)
 
 
 # ── 3. Status — From Document Type ────────────────────────────────────
@@ -396,24 +411,28 @@ def parse_mva_from_text(text: str) -> Optional[float]:
     """Parse total MVA from scope text.
 
     '3x1500MVA' → 4500.0, '2x500 MVA' → 1000.0, '1500 MVA' → 1500.0
+    Also handles combinations like '6x1500 MVA and 500 MVA' → 9500.0
     """
     if not text:
         return None
 
+    total = 0.0
+    found = False
+
     # NxM MVA patterns
-    multiplied = _MVA_PATTERN.findall(text)
-    if multiplied:
-        total = 0.0
-        for count_str, mva_str in multiplied:
-            total += int(count_str) * int(mva_str)
-        return total
+    for m in _MVA_PATTERN.finditer(text):
+        total += int(m.group(1)) * int(m.group(2))
+        found = True
 
-    # Single MVA value
-    single = _MVA_SINGLE.findall(text)
-    if single:
-        return float(max(int(v) for v in single))
+    # Remove matched NxM patterns so we don't double count the 'MVA' part
+    remaining_text = _MVA_PATTERN.sub("", text)
 
-    return None
+    # Single MVA values
+    for m in _MVA_SINGLE.finditer(remaining_text):
+        total += int(m.group(1))
+        found = True
+
+    return total if found else None
 
 
 # ── 6. Parent-Child Scheme Inheritance ─────────────────────────────────
@@ -518,11 +537,17 @@ def compute_percentages(element: TransmissionElement) -> TransmissionElement:
 
 
 def backfill_mva(element: TransmissionElement) -> TransmissionElement:
-    """Backfill MVA from transmission_scope if LLM didn't compute it."""
-    if element.mva is None or element.mva == 0:
+    """Always compute MVA from transmission_scope via Regex to prevent LLM hallucination."""
+    if element.transmission_scope:
         parsed = parse_mva_from_text(element.transmission_scope)
-        if parsed:
+        if parsed is not None:
             element.mva = parsed
+    return element
+
+
+def clear_tentative_scod(element: TransmissionElement) -> TransmissionElement:
+    """Clear Tentative SCOD as it is not present in the PDF report."""
+    element.tentative_scod = ""
     return element
 
 
@@ -654,11 +679,14 @@ def post_process_elements(
         # d. Source
         elem.source = source
 
-        # e. MVA backfill
+        # e. MVA backfill (Overrides LLM calculation to avoid hallucination)
         elem = backfill_mva(elem)
 
         # f. Percentage calculations
         elem = compute_percentages(elem)
+        
+        # g. Clear Tentative SCOD
+        elem = clear_tentative_scod(elem)
 
         # g. Validate SPV Transfer Date
         elem = validate_spv_transfer_date(elem)
