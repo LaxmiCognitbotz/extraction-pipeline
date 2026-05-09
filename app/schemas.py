@@ -166,54 +166,54 @@ class TransmissionElement(BaseModel):
         ),
     )
     tx_length: Optional[float] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Length",
+        None, alias="Length",
         description=(
             "Sanctioned length of transmission line in CKM. "
             "Example: 340, 628. Only for transmission lines."
         ),
     )
     tx_location: Optional[float] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Location",
+        None, alias="Location",
         description=(
             "Total tower locations (number of towers sanctioned). "
             "Example: 463, 816. Only for transmission lines."
         ),
     )
     tx_foundation: Optional[float] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Foundation",
+        None, alias="Foundation",
         description=(
             "Foundation completed (number of tower foundations done). "
             "Only for transmission lines."
         ),
     )
     tx_erection: Optional[float] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Erection",
+        None, alias="Erection",
         description=(
             "Erection completed (number of towers erected). "
             "Only for transmission lines."
         ),
     )
     tx_stringing: Optional[float] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Stringing",
+        None, alias="Stringing",
         description=(
             "Stringing completed in CKM. "
             "Example: 340, 524.24. Only for transmission lines."
         ),
     )
     tx_foundation_pct: Optional[str] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Foundation (%)",
+        None, alias="Foundation (%)",
         description="Auto-computed. Leave null.",
     )
     tx_erection_pct: Optional[str] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Erection (%)",
+        None, alias="Erection (%)",
         description="Auto-computed. Leave null.",
     )
     tx_stringing_pct: Optional[str] = Field(
-        None, alias="Physical Progress S/s of Tx. Line > Stringing (%)",
+        None, alias="Stringing (%)",
         description="Auto-computed. Leave null.",
     )
     ss_civil_work_pct: Optional[str] = Field(
-        None, alias="Physical Progress Substation > Civil Work (%)",
+        None, alias="Civil Work (%)",
         description=(
             "Civil work completion percentage for substation. "
             "Extract EXACTLY as written (e.g. '92.00%'). "
@@ -221,14 +221,14 @@ class TransmissionElement(BaseModel):
         ),
     )
     ss_equipment_received_pct: Optional[str] = Field(
-        None, alias="Physical Progress Substation > Equipment Received (%)",
+        None, alias="Equipment Received (%)",
         description=(
             "Equipment received percentage for substation. "
             "Extract EXACTLY as written."
         ),
     )
     ss_equipment_erected_pct: Optional[str] = Field(
-        None, alias="Physical Progress Substation > Equipment Erected (%)",
+        None, alias="Equipment Erected (%)",
         description=(
             "Equipment erected percentage for substation. "
             "Extract EXACTLY as written."

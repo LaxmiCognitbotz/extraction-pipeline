@@ -11,6 +11,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
+
 from app.config import settings
 from app.converter import extract_tables_from_pdf
 from app.extractor import extract_from_corpus
@@ -127,8 +129,58 @@ def run_pipeline(
         json.dumps(output_data, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+    print(f"[pipeline] [OK] JSON saved -> {output_path}")
 
-    print(f"[pipeline] [OK] {result.element_count} elements -> {output_path}")
+    # Generate Excel
+    if output_data["elements"]:
+        df = pd.DataFrame(output_data["elements"])
+        
+        # Build exact grouped headers requested by user
+        multi_cols = [
+            ("Element Code", ""),
+            ("Inter/Intra Tx. Element", ""),
+            ("Transmission Scheme", ""),
+            ("Transmission Scope", ""),
+            ("MVA", ""),
+            ("Status", ""),
+            ("Approval of Elements in which NCT", ""),
+            ("Source", ""),
+            ("Tender Issuing Authority", ""),
+            ("Date of tender issuance", ""),
+            ("Date of Bid Submission", ""),
+            ("Execution Timeline", ""),
+            ("Tentative SCOD", ""),
+            ("Awarded To", ""),
+            ("Project Cost (Cr.) (NCT)", ""),
+            ("SPV Transfer Date", ""),
+            ("Physical Progress S/s of Tx. Line", "Length"),
+            ("Physical Progress S/s of Tx. Line", "Location"),
+            ("Physical Progress S/s of Tx. Line", "Foundation"),
+            ("Physical Progress S/s of Tx. Line", "Erection"),
+            ("Physical Progress S/s of Tx. Line", "Stringing"),
+            ("Physical Progress S/s of Tx. Line", "Foundation (%)"),
+            ("Physical Progress S/s of Tx. Line", "Erection (%)"),
+            ("Physical Progress S/s of Tx. Line", "Stringing (%)"),
+            ("Physical Progress Substation", "Civil Work (%)"),
+            ("Physical Progress Substation", "Equipment Received (%)"),
+            ("Physical Progress Substation", "Equipment Erected (%)"),
+            ("Original SCOD", ""),
+            ("Anticipated SCOD", ""),
+            ("Remarks", ""),
+        ]
+        
+        df.columns = pd.MultiIndex.from_tuples(multi_cols)
+        
+        excel_path = out_dir / f"{pdf_path.stem}_extracted.xlsx"
+        
+        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+            df.to_excel(writer, index=True)
+            # Delete the first column (the pandas index) since index=False doesn't work with MultiIndex
+            worksheet = writer.sheets["Sheet1"]
+            worksheet.delete_cols(1)
+            
+        print(f"[pipeline] [OK] Excel saved -> {excel_path}")
+
     return result
 
 
