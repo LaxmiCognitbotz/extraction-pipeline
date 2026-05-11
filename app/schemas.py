@@ -42,7 +42,7 @@ Columns NOT extracted (not discussed yet):
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
