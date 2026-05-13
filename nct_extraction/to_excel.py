@@ -45,16 +45,15 @@ def write_excel(results: list[dict], output_path: str) -> None:
 
     headers = [
         "S.No.",
-        "Meeting",
+        "Meeting Name",
         "Element Code",
-        "Scheme Name",
-        "Scope",
-        "Capacity (MVA)",
-        "Length (km)",
-        "Implementation Mode",
-        "Tender Issuing Authority",
-        "Project Cost (Cr.)",
+        "Transmission Scheme",
+        "Transmission Scope",
+        "MVA",
+        "Length",
         "Execution Timeline",
+        "Tender Issuing Authority",
+        "Project Cost (Cr.) (NCT)",
         "Source",
     ]
 
@@ -76,19 +75,24 @@ def write_excel(results: list[dict], output_path: str) -> None:
         elements = result.get("elements", [])
 
         for elem in elements:
+            length_val = None
+            if "Physical Progress S/s of Tx. Line" in elem and isinstance(elem["Physical Progress S/s of Tx. Line"], dict):
+                length_val = elem["Physical Progress S/s of Tx. Line"].get("Length")
+            else:
+                length_val = elem.get("length_km")
+
             values = [
                 serial,
                 meeting,
-                elem.get("element_code", ""),
-                elem.get("scheme_name", ""),
-                elem.get("scope", ""),
-                elem.get("capacity_mva"),
-                elem.get("length_km"),
-                elem.get("implementation_mode", ""),
-                elem.get("tender_issuing_authority", ""),
-                elem.get("project_cost_cr"),
-                elem.get("execution_timeline", ""),
-                elem.get("source", ""),
+                elem.get("Element Code") or elem.get("element_code", ""),
+                elem.get("Transmission Scheme") or elem.get("scheme_name", ""),
+                elem.get("Transmission Scope") or elem.get("scope", ""),
+                elem.get("MVA") if "MVA" in elem else elem.get("capacity_mva"),
+                length_val,
+                elem.get("Execution Timeline") or elem.get("execution_timeline", ""),
+                elem.get("Tender Issuing Authority") or elem.get("tender_issuing_authority", ""),
+                elem.get("Project Cost (Cr.) (NCT)") if "Project Cost (Cr.) (NCT)" in elem else elem.get("project_cost_cr"),
+                elem.get("Source") or elem.get("source", ""),
             ]
 
             for col, value in enumerate(values, 1):
@@ -101,7 +105,7 @@ def write_excel(results: list[dict], output_path: str) -> None:
             serial += 1
 
     # ── Column widths ──
-    col_widths = [8, 20, 12, 45, 60, 14, 12, 18, 22, 16, 25, 20]
+    col_widths = [8, 20, 12, 45, 60, 14, 12, 25, 22, 18, 20]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 
@@ -121,10 +125,9 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
 
     csv_path = output_path.replace(".xlsx", ".csv")
     headers = [
-        "S.No.", "Meeting", "Element Code", "Scheme Name", "Scope",
-        "Capacity (MVA)", "Length (km)", "Implementation Mode",
-        "Tender Issuing Authority", "Project Cost (Cr.)",
-        "Execution Timeline", "Source",
+        "S.No.", "Meeting Name", "Element Code", "Transmission Scheme", "Transmission Scope",
+        "MVA", "Length", "Execution Timeline", "Tender Issuing Authority",
+        "Project Cost (Cr.) (NCT)", "Source",
     ]
 
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -135,19 +138,24 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
         for result in results:
             meeting = result.get("meeting_name", "")
             for elem in result.get("elements", []):
+                length_val = None
+                if "Physical Progress S/s of Tx. Line" in elem and isinstance(elem["Physical Progress S/s of Tx. Line"], dict):
+                    length_val = elem["Physical Progress S/s of Tx. Line"].get("Length")
+                else:
+                    length_val = elem.get("length_km", "")
+
                 writer.writerow([
                     serial,
                     meeting,
-                    elem.get("element_code", ""),
-                    elem.get("scheme_name", ""),
-                    elem.get("scope", ""),
-                    elem.get("capacity_mva", ""),
-                    elem.get("length_km", ""),
-                    elem.get("implementation_mode", ""),
-                    elem.get("tender_issuing_authority", ""),
-                    elem.get("project_cost_cr", ""),
-                    elem.get("execution_timeline", ""),
-                    elem.get("source", ""),
+                    elem.get("Element Code") or elem.get("element_code", ""),
+                    elem.get("Transmission Scheme") or elem.get("scheme_name", ""),
+                    elem.get("Transmission Scope") or elem.get("scope", ""),
+                    elem.get("MVA", "") if "MVA" in elem else elem.get("capacity_mva", ""),
+                    length_val,
+                    elem.get("Execution Timeline") or elem.get("execution_timeline", ""),
+                    elem.get("Tender Issuing Authority") or elem.get("tender_issuing_authority", ""),
+                    elem.get("Project Cost (Cr.) (NCT)", "") if "Project Cost (Cr.) (NCT)" in elem else elem.get("project_cost_cr", ""),
+                    elem.get("Source") or elem.get("source", ""),
                 ])
                 serial += 1
 

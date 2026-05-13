@@ -29,7 +29,7 @@ def process_single(pdf_path: str, output_dir: str) -> dict | None:
 
     try:
         result = extract_from_pdf(pdf_path)
-        data = result.model_dump()
+        data = result.to_mapped_dict()
 
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -72,7 +72,7 @@ def process_directory(dir_path: str, output_dir: str):
 
         try:
             result = extract_from_pdf(pdf_path)
-            data = result.model_dump()
+            data = result.to_mapped_dict()
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             results.append(data)

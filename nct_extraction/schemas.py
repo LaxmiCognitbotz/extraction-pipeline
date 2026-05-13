@@ -100,3 +100,26 @@ class NCTExtractionResult(BaseModel):
         description="Name of the NCT meeting (e.g. '40th NCT Meeting').",
     )
     elements: List[NCTElement] = Field(default_factory=list)
+
+    def to_mapped_dict(self) -> dict:
+        """Convert result to a dict mapped exactly to the required downstream report JSON keys."""
+        mapped_elements = []
+        for elem in self.elements:
+            mapped_elements.append({
+                "Element Code": elem.element_code,
+                "Transmission Scheme": elem.scheme_name,
+                "Transmission Scope": elem.scope,
+                "MVA": elem.capacity_mva,
+                "Physical Progress S/s of Tx. Line": {
+                    "Length": elem.length_km
+                },
+                "Execution Timeline": elem.execution_timeline,
+                "Tender Issuing Authority": elem.tender_issuing_authority,
+                "Project Cost (Cr.) (NCT)": elem.project_cost_cr,
+                "Source": elem.source
+            })
+        return {
+            "meeting_name": self.meeting_name,
+            "elements": mapped_elements
+        }
+
