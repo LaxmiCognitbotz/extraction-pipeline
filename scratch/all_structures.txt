@@ -1,0 +1,70 @@
+
+==================== File: 01_40th_NCT_MoM.pdf ====================
+Page 1 Table 0 Headers: [None, None, '(बै(cid:24).एस.बै*र(cid:9)(cid:2)', '/', '', 'B.S. Bairwa)', None]
+Page 2 Table 0 Headers: ['1.', 'Chairperson,\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', '2.', 'Member (Power Systems),\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.']
+Page 4 Table 0 Headers: ['Sr. No', 'Name of the\nTransmission\nScheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplementation', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 0 Headers: ['', 'Durgapur –\nJeerat (New)\n765kV\ncorridor', '', '', '', 'MoP on\n24.03.2026']
+Page 5 Table 1 Headers: ['S.\nNos.', 'Scheme where modifications were\nsuggested', 'Status']
+Page 6 Table 0 Headers: ['', None, 'Length as\nper 38th\nNCT MoM', 'Revised\nlength', '', None, None]
+Page 6 Table 1 Headers: ['', None, None, 'Cost as per\n38th NCT\nMoM', 'Revised\nCost', '']
+
+==================== File: 02_39th_NCT_MoM.pdf ====================
+Page 1 Table 0 Headers: [None, None, '(बै(cid:24).एस.बै*र(cid:9)(cid:2)', '/', '', 'B.S. Bairwa)', None]
+Page 2 Table 0 Headers: ['1.', 'Chairperson,\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', '2.', 'Member (Power Systems),\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.']
+Page 4 Table 0 Headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommended\n/ Approved', 'Mode of\nImplement\nation', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 0 Headers: ['S. No.', 'Scheme where modifications was suggested', 'Status']
+Page 10 Table 0 Headers: ['S.N.', 'Region(s)', 'RECPDCL', 'PFCCL']
+
+==================== File: 03_38th_NCT_MoM.pdf ====================
+Page 1 Table 0 Headers: [None, '(बै(cid:21).एसे.बै*र(cid:2)(cid:9) / B.S. Bairwa)', None, None, None, None]
+Page 2 Table 0 Headers: ['1.', 'Chairperson,\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', '2.', 'Member (Power Systems),\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.']
+Page 4 Table 0 Headers: ['Confirmation of the minutes of the 37', 'th', 'meeting of National Committee on']
+Page 4 Table 1 Headers: ['Status of the transmission schemes noted/approved/recommended to MoP in the 37', 'th']
+Page 4 Table 2 Headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplement\nation', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 0 Headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplement\nation', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 1 Headers: ['S.\nNos.', 'Scheme where modifications were suggested', 'Status']
+
+==================== File: 11_30th_NCT_MoM.pdf ====================
+Page 1: No text extracted (possibly scanned)
+Page 2 Table 0 Headers: ['1.', 'Chairperson,\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', '2.', 'Member (Power Systems),\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', None, None, None]
+Page 4 Table 0 Headers: ['Sr.\nNo', 'Name of the Transmission\nScheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplementa\ntion', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 0 Headers: ['Sr.\nNo', 'Name of the Transmission\nScheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplementa\ntion', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 1 Headers: ['S.\nNos.', 'Scheme where modifications was suggested', 'Status']
+Page 8 Table 0 Headers: ['SI.\nNo', 'Technology', 'Capacity', 'Apprx. Cost\n(in cr.)']
+Page 10 Table 0 Headers: ['Sl.\nNo.', 'Name of the scheme and tentative implementation\ntimeframe', 'Estimated Cost\n(₹ Crore)', 'Remarks']
+
+==================== File: 21_20th_NCT_MoM.pdf ====================
+Page 1 Table 0 Headers: ['मंख्(cid:11) य अधिभायन्त(cid:2) (इं(cid:13)चा(cid:2)ज)0 ए(cid:9)(cid:13) सदस्य सधिचा(cid:9),एना.स(cid:24).टी(cid:19)./', None, None, None]
+Page 4 Table 0 Headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommende\nd/ Approved', 'Mode of\nImplem\nentation', 'BPC', 'Award/\nGazette\nnotification']
+Page 5 Table 0 Headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommende\nd/ Approved', 'Mode of\nImplem\nentation', 'BPC', 'Award/\nGazette\nnotification']
+Page 6 Table 0 Headers: ['S. No.', 'Scheme where modifications was suggested', 'Status']
+Page 6 Table 1 Headers: ['Sl. No.', 'Scope of the Transmission Scheme', 'Capacity /km']
+Page 7 Table 0 Headers: ['Sl. No.', 'Scope of the Transmission Scheme', 'Capacity /km']
+
+==================== File: 31_10th_NCT_MoM.pdf ====================
+Page 1: No text extracted (possibly scanned)
+Page 4 Table 0 Headers: ['Sl\n.\nN\no', 'Name of the\nTransmission\nScheme', 'Noted/\nRecommen\nded/\nApproved', 'Survey\nAgency', 'MoP\napprov\nal', 'BPC', 'Remarks']
+Page 5 Table 0 Headers: ['Sl\n.\nN\no', 'Name of the\nTransmission\nScheme', 'Noted/\nRecommen\nded/\nApproved', 'Survey\nAgency', 'MoP\napprov\nal', 'BPC', 'Remarks']
+Page 6 Table 0 Headers: ['Sl\n.\nN\no', 'Name of the\nTransmission\nScheme', 'Noted/\nRecommen\nded/\nApproved', 'Survey\nAgency', 'MoP\napprov\nal', 'BPC', 'Remarks']
+Page 7 Table 0 Headers: ['Sl.\nNo.', 'Scope of the Transmission Scheme', 'Capacity/km.']
+Page 8 Table 0 Headers: ['Sl.\nNo.', 'Scope of the Transmission Scheme', 'Capacity/km']
+Page 9 Table 0 Headers: ['Sl.\nNo.', 'Scope of the Transmission Scheme\n(Original)', 'Scope of the Transmission Scheme\n(Revised)']
+
+==================== File: 41_1st_NCT_MoM.pdf ====================
+Page 1 Table 0 Headers: ['']
+Page 1 Table 1 Headers: [None, '(iv)', 'PFC Consulting Ltd, First Floor, “Urjanidhi”, 1, Barakhmba Lane, Connaught Place,', None]
+Page 2 Table 0 Headers: ['1.', 'Chairperson,\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', '2.', 'Member (Power System),\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.']
+Page 3 Table 0 Headers: ['Ite\nm\nNo.', 'Scheme name', 'Table location', 'As recorded in the\nminutes of the\nmeeting', 'Corrigendum\nproposed']
+Page 5 Table 0 Headers: [None, None, None, 'National Load Despatch Centre (NLDC) has been', None]
+Page 5 Table 1 Headers: ['Chief Engineer (PSPA-II) stated that clear contradictions can be seen amongst the Terms']
+
+==================== File: 46_2nd_NCT_MoM.pdf ====================
+Page 1: No text extracted (possibly scanned)
+Page 2: No text extracted (possibly scanned)
+Page 3 Table 0 Headers: ['']
+Page 3 Table 1 Headers: ['S.\nNo', 'Name of Scheme', 'Estimated Cost as per\nNCT (in Crore)', 'BPC']
+Page 5 Table 0 Headers: ['Solar Energy Zone (SEZ)', None, None, None, None, '', 'Wind Energy Zone (WEZ)', None, None, None, None]
+Page 10 Table 0 Headers: ['Sl.\nNo.', 'Scope of the Transmission Scheme', 'Capacity (MVA)', 'Estimated Cost\n(Rs.) Cr.']
+Page 10 Table 1 Headers: ['Sl. No.', 'Scope of the Transmission Scheme', 'Capacity /ckm', 'Estimated Cost\n(Rs.) Cr.']
+Page 11 Table 0 Headers: ['', 'project (other than 4000MW injection\nunder SECI bids upto Tranche IV) in\nexisting Bhuj PS with associated 400 kV\nGIS bay and 220kV AIS bay.', '400kV ICT bay-1\n230kV ICT bay-1', '']
+Page 11 Table 1 Headers: ['Sl.\nNo.', 'Scope of the Transmission\nScheme', 'Capacity /km', 'Estimated Cost (Rs.)\nCr.']

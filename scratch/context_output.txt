@@ -1,0 +1,437 @@
+--- Page 6 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+A.Scope of Works: Supply and installation of OPGW (48F) along with required
+accessories, approach cables, required Fiber Optic Terminal Equipment (FOTE),
+required repeater stations, required NMS and amplifiers/optical interfaces etc. for
+commissioning of optical fibre links on ISTS lines which are as follows:
+Length as Revised
+per 38th length
+NCT MoM
+Sl.No. Owner of the 48F 48F OPGW STM-16 STM-64 Repeater
+Line OPGW (Length in FOTE FOTE Station
+(Length in Km) (Nos.) (Nos.)
+Km)
+A.7 JTCL/Indigrid* 514.75 614.75 4 0 2
+B. Details of the scheme
+Cost as per Revised
+38th NCT Cost
+MoM
+Cost Cost
+Estimate Estimate
+Implementing Implementation Implementation
+Scope
+Agency Mode Timeline
+(Approx.) (Approx.)
+in Crs in Crs
+For
+30 months from the
+Scope JTCL/Indigrid* RTM 31.829 37.329
+date of allocation.
+A.7
+405.852 Crs. (Four
+hundred five crores
+eighty-five lakhs and
+Total Cost of the scheme as per 38th NCT MoM twenty thousand only)
+(approx.)
+[total OPGW length
+6676.1Kms (approx.)]
+411.352 Crs. (Four
+hundred eleven
+crores thirty-five
+lakhs and twenty
+Modified Total cost of the scheme
+thousand only)
+(approx.)
+[total OPGW length
+6776.1Kms (approx.)]
+*JTCL: Jabalpur Transmission Company Ltd.
+6
+--- Page 7 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+4 New Transmission Schemes
+4.1 Transmission scheme for evacuation of power as part of Rajasthan REZ Ph-IV
+(Part-6: 6GW) (Bikaner Complex) (Bikaner V: 6GW)
+4.1.1 Representative of CTUIL stated that the transmission scheme for evacuation of 6GW
+RE power from Bikaner V PS was discussed in 39th NCT meeting held on 17.03.26.
+In the NCT meeting, it was deliberated that Connectivity applications for 6GW on
+Bikaner-V S/s may be granted for the non-solar hours margins available at four
+substations (Bikaner-I to Bikaner-IV PS) instead of creating Bikaner-V S/s.
+Developers may be given the choice to choose the substation based on their
+feasibility, subject to the condition that BESS must be included by the developers
+with the RE Generation. In the meeting, it was decided that a meeting may be
+convened shortly with the connectivity applicants of Bikaner-V PS to deliberate on
+the issue.
+4.1.2 Accordingly, CEA has conducted a meeting on 25.03.26 to discuss the feasibility of
+alternate connectivity to the RE developers who have been granted in-principal
+connectivity through Bikaner V transmission scheme and to identify and mitigate any
+issue arising out of such proposal of utilizing the existing transmission system (under
+Bikaner -I to Bikaner-IV PS) instead of creating a new transmission corridor.
+4.1.3 In that meeting, Chairperson, CEA informed that as per deliberations held in NCT
+meeting Bikaner-V Transmission Scheme seems to be non-feasible. Therefore,
+developers who have been granted in-principal connectivity under Bikaner-V
+transmission scheme may be given priority in getting connectivity during non-solar hours
+from existing or under-construction transmission schemes of Bikaner complex i.e.
+Bikaner-I, II, III, IV pooling stations. This will ensure early connectivity to the RE
+developers i.e. by Decemer-2026 (for Bikaner-III) or April-2027 (for Bikaner-IV).
+Developers were requested to furnish their techno-economic feasibility in relocating their
+connectivity from Bikaner-V (solar hours) to Bikaner-I/II/III/IV (Non-solar hours access)
+to CEA within 15 days.
+4.1.4 Chief Engineer (PSPA-I), CEA informed that no developer has agreed to shift their
+connectivity from Bikaner-V to Bikaner-I to IV.
+4.1.5 Expert Member, Shri S.R. Narasimhan stated that there were broadly five issues on
+the agenda item which needed further analysis and deliberations by the NCT. Some
+of the issues have come up after the 39th NCT meeting on 17th March 2026 which
+should be kept sight of. These are enumerated below.
+a) In the 39th NCT meeting on 17th March 2026, he forwarded a detailed
+suggestion on the Non-Wires Alternative (NWA) to transmission viz. Battery
+Energy Storage System (BESS). The BESS alternative appeared more techno
+economic compared to the transmission system indicated in the agenda. The
+BESS (with Grid Forming Inverters) could be planned as a transmission asset
+and built through Tariff Based Competitive Bidding (TBCB) to avoid any
+7
+--- Page 8 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+issues such as lack of buyers for stand-alone storage or off-solar hours peak
+power. Further on the 20th March 2026, CERC has also amended the Terms
+and Conditions of Tariff Regulations for 2024-29 period whereby a generating
+station or transmission asset under section 62 can install energy storage system
+at their power plant or substation. Technical and commercial framework for
+the same has been provided in the Regulations. So, extending this logic, the
+BESS asset in lieu of transmission can easily be executed through TBCB with
+minor modifications to the bidding documents. This could be done quickly.
+b) For the purpose of addressing low Short Circuit Ratio (SCR) and voltage
+profile, three (3) SynCons have been planned and would come up in
+subsequent meetings of the NCT. Also, the Load Generation Balance (LGB)
+considered in the studies assumed 6 GW extra load in Rajasthan over and
+above the 20th Electric Power Survey (EPS) figures due to the KBINR
+industrial belt. Also the technical minimum considered for coal stations in the
+studies was 40% against CEA’s 55% assumption in the Long Term-National
+Resource Adequacy Plan (LT-NRAP) report released on 19th March 2026 by
+CEA. The studies also assumed that 6000 MW HVDC Barmer-Murbad
+(Kalamb) would be in service whereas this project has still not been awarded
+and there would be a 48-54 months commissioning schedule. Further, rather
+than citing enhancement of Total Transfer Capability (TTC) for a few states
+like Punjab under this agenda item, it would be better if a comprehensive
+study for all states’ TTC/ATC enhancement through network upgrades is
+brought before the NCT. Today, nearly 22 states have their General Network
+Access (GNA) quantum exceeding 70% of the Available Transfer Capability
+(ATC) making them extremely vulnerable in case of any contingencies.
+c) Looking at the experience of delays in transmission, assuming 100% certainty
+in new transmission schedules may not be in order. As on date 11 GW of RE
+connected to ISTS is already facing 90-95% curtailment (4.5 GW in Rajasthan
+and 6.5 GW in Gujarat) due to delay in commissioning of the planned
+transmission system. The BESS alternative suggested above can be
+commissioned quickly in phases.
+d) Recently CERC on 10th April 2026 had passed an order in petition no
+666/MP/2025 filed by M/s SUCRL. SUCRL had expressed difficulty in
+finalizing their land parcel for solar plant due to the coordinates for Bikaner-V
+substation and the transmission system not yet finalized by the CTU. The
+Commission had given SUCRL the option to withdraw their connectivity
+application and similar treatment to all developers who had been granted in
+principle connectivity at Bikaner-V. The response from all the developer’s
+side on withdrawal is still not clear.
+e) The GNA third amendment segregating connectivity to solar and non-solar
+8
+--- Page 9 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+hours may not provide much relief in optimizing transmission costs in terms of
+new build. Various decisions taken at CEA/CTU level for implementing this
+amendment such as mandating minimum 2 hour storage, barring injection
+during solar hours and barring charging from ISTS make it restrictive. The
+BESS’ MW capacity may not be fully utilized while charging (just 40%
+utilization in case of a 2 hour storage) making the system less flexible.
+Minimum 5 hour storage (approx. 6 hours charging time) would be needed to
+reduce new lines build out as also fully utilizing the BESS charge/discharge
+MW capability. But a 5 hours storage would mean that 100% of solar or RE
+output is used for charging and the peak non-solar tariff would be of the order
+of Rs 6.50-7 per kWh making the process of getting buyers difficult.
+4.1.6 Representative of MNRE stated that the proposed Bikaner-V pooling station offers a
+comprehensive solution to critical grid integration challenges, enabling the
+evacuation of approximately 12 GW of RE capacity (6 GW solar and 6 GW non-
+solar). Recent sectoral shifts (current RE tenders) from plain solar or wind tenders
+toward Round-the-Clock (RTC), Firm and Dispatchable RE (FORE), Hybrid, and
+Solar + ESS configurations have introduced which require round-the-clock
+evacuation capability and that necessitate the immediate implementation of this
+scheme rather than relying on existing margins for "non-solar hours only" at Bikaner
+I-IV. He further informed that the developers have already made substantial
+commitments, including the acquisition of approximately 15,000 acres of land and
+significant financial investments based on in-principle connectivity grants. He
+suggested that new technologies i.e. grid forming inverters, etc. may be considered at
+later stage as it doesn’t appear feasible at present.
+4.1.7 Chief Engineer (PSPA-I), CEA informed that 6 GW demand in Rajasthan (KBINR)
+is over and above the 20th Electric Power Survey (EPS) figures and this demand will
+be commensurate to RE planned as part of intra state scheme in GEC-III
+4.1.8 Representative of CTUIL informed that in-principle connectivity of 6000 MW has
+been granted at Bikaner-V for solar hours and about 3600 MW connectivity
+applications have been received for non-solar hours (under RoFR). He also stated
+that transmission system planning is carried out based on EPS demand as well as
+STUs feedback on anticipated demand. He stated that 3 nos. of synchronous
+condensers planned in Rajasthan are required in other complexes of Rajasthan
+(Ramgarh, Bhadla and Fatehgarh) due to low SCR, in consultation with CEA and
+Grid-India. In Bikaner complex, SCR is in order and at present no SynCons are
+envisaged in this complex. Further, Bikaner V scheme improves short circuit
+strength of overall western Rajasthan complex (specially in Bikaner complex).
+Regarding location of the proposed Bikaner-V PS, it was clarified that tentative
+coordinates would only be available upon survey by BPC after approval of the
+scheme in NCT/MOP.
+4.1.9 Representative of CTUIL also informed that the scheme is planned for evacuation of
+6 GW RE power from Bikaner V PS on EHVAC system which will take less
+9
+--- Page 10 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+implementation time than a HVDC system. The proposed transmission scheme also
+includes the elements from the feedback of Grid-India for resolution of operational
+constraints like issue of critical loading of 765 kV Bikaner - Moga D/c line (carrying
+RE power of Bikaner RE complex) as well as issue of higher angular separation (>20
+degree) under N-1/N-1-1 contingency (relieving 1.5GW of above line through
+proposed scheme). This scheme will facilitate resolution of the issue of critical
+loading of 765kV Aligarh - Greater Noida line (carrying RE power of
+Fatehgarh/Bhadla RE complex) (relief of about 1 GW on above line). Also, the
+scheme shall also mitigate issue of higher angular separation (>25 degree) under N-
+1/N-1-1 contingency in 400kV Bikaner -II-Khetri D/c line (relief of 0.5 GW on
+above line). Considering above, the proposed transmission corridor is carrying about
+9 GW power (6 GW RE power of Bikaner V PS and 3 GW power (majorly RE) to
+resolve above transmission constraints in Northern region.
+4.1.10 Representative from SRPC stated that for BESS as transmission asset, NLDC is yet
+to issue the procedure for operation.
+4.1.11 Member (Power Systems), CEA stated that considering land issues in Panipat area,
+possibility of proposed substation under GIS instead of AIS may be considered.
+Representative of CTUIL agreed to examine the matter.
+4.1.12 After deliberations, following were decided:
+a) Another meeting may be convened by CEA, with RE developers who have been
+granted in-principal connectivity through Bikaner V transmission scheme.
+b) CTUIL to analyze implication for the technical minimum requirement of coal
+stations as 55% instead of 40%.
+c) The scheme may be objective wise segregated (scheme required for RE
+evacuation of Bikaner V PS and Grid strengthening purpose based on Grid-India
+feedback).
+d) Outcome of the above shall be discussed in next meeting.
+4.2 Transmission System for supply of power to Green Hydrogen/Green Ammonia
+manufacturing potential in Mundra area of Gujarat under Phase-I: Part B1
+scheme (3 GW at Navinal S/s)
+4.2.1 Chief Engineer (PSPA-II), CEA stated that the Transmission System for supply of
+power to Green Hydrogen/ Ammonia manufacturing potential in the Mundra area of
+Gujarat under Phase-I: Part B1 scheme (3 GW at Navinal S/s) was recommended in
+the 22nd meeting of NCT, held at an estimated cost of Rs. 2817 cr. with an
+implementation timeframe of 36 months. MoP notified the scheme for
+implementation under the ISTS through TBCB (with PFCCL as BPC) vide Gazette
+Notification dated 12.09.2024. Mundra I Transmission Limited, the successful bidder
+for the scheme, has filed a Petition before the Central Electricity Regulatory
+Commission (CERC) under Section 14 of the Electricity Act, 2003, for grant of
+transmission license to establish the transmission project on a Build, Own, Operate
+10
+--- Page 11 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+and Transfer (BOOT) basis.
+4.2.2 In the 35th NCT meeting, it was decided to deliberate the matter again after
+receiving inputs from MNRE regarding the visibility of Green Hydrogen/Green
+Ammonia (GH/GA) projects in the Mundra region, along with the associated
+timelines.
+4.2.3 AESL (the successful bidder), vide letter dated 16.03.2026, requested NCT to
+recommend the subject transmission scheme to enable the petitioner to place the
+matter before the Hon’ble CERC for grant of transmission licence, taking into
+account the applicable planning policy, necessity of the scheme, implementation
+status already achieved under the completed TBCB process, and the updated inputs
+of MNRE and CTUIL.
+4.2.4 The representative of MNRE informed that, at present, there is no visibility of Green
+Hydrogen/Green Ammonia projects in the Mundra region.
+4.2.5 The representative of CTUIL mentioned that, as on date, no GNA applications have
+been received against the planned 3GW capacity under the subject scheme.
+4.2.6 Expert Member, Shri S.R. Narasimhan stated that if the Green Hydrogen/Green
+Ammonia projects at Navinal and Kandla do not materialize in the near future,
+congestion in the Khavda transmission system would further increase, as the
+planning studies were carried out assuming that the presence of these loads..
+4.2.7 After deliberations, NCT decided that the transmission scheme “Transmission
+System for supply of power to Green Hydrogen/Ammonia manufacturing potential in
+Mundra area of Gujarat under Phase-I: Part B1 scheme (3 GW at Navinal S/s)” shall
+be taken up in NCT as and when there is visibility of the demand.
+4.3 Implementation timeframe for Inter-State Transmission System (ISTS) projects
+4.3.1 Representative of CTUIL stated that a realistic implementation timeline would
+provide clarity to generators, enabling them to incorporate flexibility in the
+implementation schedule of their generation projects so as to align with the SCoD of
+the evacuation schemes. This would further facilitate commissioning of transmission
+schemes within the stipulated timelines. In this regard, CTUIL proposed to
+benchmark a general implementation schedule of ISTS projects.
+4.3.2 Chief Engineer (PSPA-II), CEA, stated that the matter was deliberated in the 38th
+meeting of NCT, wherein NCT opined that the issues such as ROW, land acquisition,
+difficult terrain etc., vary from scheme to scheme and are difficult to generalize, and
+hence need to be examined on case to case basis. However, MNRE, vide O.M. dated
+30.03.2026, requested CEA to consider and take action on the point “realistic
+timelines for implementation of transmission projects may be specified in NCT
+based on past experience, terrain, etc.”
+4.3.3 CTUIL informed that based on the exercise carried out during December, 2025, it
+was observed that after ignoring the outlier cases of system which were delayed
+beyond 24 months, about 85% of ISTS projects would have been commissioned
+11
+--- Page 12 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+within time frame, if additional 12-18 months was provided for implementation (56
+projects would have been commissioned, out of 63 delayed projects). These delays in
+implementation of the ISTS projects were primarily due to RoW issues, delay in
+getting forest clearances, land acquisition for sub-station, etc.
+4.3.4 NCT opined that the timelines provided to RE developers and the timeline for
+commissioning of the corresponding transmission system should be aligned for better
+predictability and coordinated system development. After detailed deliberations,
+NCT approved the following general implementation schedule of ISTS projects for
+future transmission schemes:
+Sl. Transmission Work Implementation
+No. Timeline (Months)
+1 Greenfield AIS/GIS/Hybrid Sub-station (765 kV or 400 36
+kV)
+2 Greenfield AIS/GIS/Hybrid Sub-station (220 kV or 132 24
+kV)
+3 HVDC system (Line + Sub-station) 48-54
+4 765 kV D/c line (Length < 100 kM) 30
+5 765 kV D/c line (Length > 100 kM) 36
+6 400 kV D/c line (Length < 50 km) 24
+7 400 kV D/c line (Length > 50 km) 30
+8 220 kV or 132 kV line 24
+9 Augmentation at Existing AIS Sub-station (400 kV and 30
+above)
+10 Augmentation at Existing AIS Sub-station (220/230 kV 24
+and below)
+11 Augmentation at Existing GIS/Hybrid Sub-station (132 30
+kV and above)
+ For hilly and difficult terrains in NER, Sikkim, J&K, Ladakh and Himachal Pradesh,
+as well as for ISTS lines passing through metro cities, urban areas, or industrial
+areas, an additional time of 6-12 months may be considered over and above the
+above timelines, on need- and merit-based assessment.
+ In case a scheme comprises a combination of the above-mentioned types of
+transmission works, the qualifying implementation timeline corresponding to the
+activity with the maximum duration shall be considered for the scheme as a whole.
+However, in case of exigencies, a compressed implementation schedule may be
+12
+--- Page 13 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+considered on a case-to-case basis.
+4.4 Committee Report on Upgradation of Raigarh–Pugalur HVDC System
+4.4.1 Chief Engineer (PSPA-I), CEA stated that in the 24th meeting of NCT held on
+23.10.2024, the scheme “Upgradation of +800 kV, 6000 MW Raigarh - Pugalur
+HVDC system for enhancement of reverse power capacity up to 6000 MW from
+existing 3000 MW” was deliberated. In the meeting, it was decided to constitute a
+committee comprising representatives from CEA, CTUIL, POWERGRID, Grid-
+India, SRPC and WRPC. The committee was mandated to carry out comprehensive
+studies and to propose a comprehensive plan, including AC system strengthening in
+Southern Region and Western Region, along with the total scheme cost.
+4.4.2 She informed that the final report of the committee regarding upgradation of the
+Raigarh – Pugalur HVDC for reverse power flow up to 6000 MW from the existing
+3000 MW has been prepared, with following recommendations:
+i. The reversal of power up to 6000 MW would be contingent upon
+implementation of WR-ER Inter-Regional Network Expansion Scheme for grant
+of connectivity to Thermal Generators in WR, and System strengthening at
+Karur in SR for additional RE integration.
+ii. Strengthening at Raigarh end is also being carried out for granting connectivity
+to thermal generators, and the associated scheme is presently under bidding. As
+part of the scheme, some additional system strengthening would also be required
+at the Raigarh end, and the estimated cost for the same is Rs. 458 Cr/ 578 Cr*.
+*Estimated Cost of the above system is Rs 458 Cr. (tentative) with the assumption
+that existing line from RKM up to Raigarh (Kotra) may be utilized for shifting of a
+600MW unit of Adani Power (Korba West). The cost would increase to Rs 578 Cr if a
+new transmission line is required to be implemented from Adani Power (Korba West)
+to Raigarh (Kotra)-II.
+iii. As per the deliberations of the Committee, the AC system strengthening at the
+Pugalur end is already being taken up as part of grant of connectivity to RE
+Generators. The scheme is yet to be placed before NCT.
+iv. Considering the cost of Rs. 1000 Cr as approved by SRPC for upgradation of the
+HVDC System (including system studies), the total cost for upgradation of the
+Raigarh - Pugalur HVDC link for reverse power flow up to 6000 MW (from the
+present level of 3000 MW) would be Rs. 1458 Crore /Rs. 1578 Crore
+*(approx.)
+*Depending on utilization of the RKM line for shifting of Adani Power Ltd.
+(Korba West) 1x600MW unit from Raigarh (Kotra) to Raigarh (Kotra-II). The
+above-mentioned cost is in addition to the cost of the following AC system
+strengthening scheme at the Raigarh and Pugalur ends:
+ WR-ER Inter-Regional Network Expansion Scheme (Under Bidding)
+ AC system strengthening at Pugalur end.
+v. Certain ICT over loadings were observed in the studies, as also highlighted by
+Grid-India. These ICT loadings are primarily due to injection of surplus RE
+from intra-state transmission network and shall be addressed in due course as
+13
+--- Page 14 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+per system requirements. These overloadings need not to be linked with the
+upgradation associated with reversal of power flow on the Raigarh-Pugalur
+HVDC link to 6000 MW. With the proposed strengthening, the overall expected
+TTC between SR-WR would be enhanced to around 15,000 MW.
+Note:
+a) The shifting of generation projects from Raigarh (Kotra) S/s to Raigarh (Kotra)-II
+S/s has been deliberated with the respective generation developers. Further, the
+modalities for such shifting are required to be finalized.
+b) The transmission system augmentation required in WR for upgradation of the
+Raigarh - Pugalur HVDC link for reverse power up to 6000 MW is contingent
+upon availability of the “WR-ER Inter-Regional Network Expansion Scheme”,
+which was agreed in the 32nd NCT meeting held on 12.08.2025.
+c) Further, the transmission system augmentation in SR required for upgradation of
+the Raigarh - Pugalur HVDC link for reverse power up to 6000 MW, i.e. “System
+strengthening at Karur for additional RE integration” shall be put-up to NCT for
+approval.
+4.4.3 After deliberations, following were decided:
+a) The proposed recommendations should be discussed with the concerned
+entities, including the generators whose dedicated lines are proposed to be
+shifted.
+b) Based on the consensus among of all concerned entities on implementation
+modalities, sharing of transmission charges, etc., CTUIL shall prepare a
+comprehensive scheme, including implementation modalities with clear roles
+and responsibilities of the entities involved, and place the same before NCT for
+consideration.
+4.5 List of ISTS projects (up to 100 crs.) awarded by CTUIL
+4.5.1 CTUIL informed that following ISTS schemes costing up to Rs.100 crs. have been
+awarded during March 2026:
+S. Name of Scheme Implementing Estimated Date of Implementation
+No. Agency Cost award Timeframe
+1. A.Implementation Powergrid Rs. 17.66 31.03.2026 30.06.2028
+of 1 no. 220 kV Mandsaur Cr
+line bay (Bus Transmission
+section-1) at Ltd. (a
+Mandsaur S/s for Wholly
+200 MW RHGS owned &
+of M/s Hexa subsidiary of
+Climate Solutions Power Grid
+Pvt. Ltd. Corporation
+(2200001037) & of India Ltd.)
+B.Implementation
+of 1 no. 400 kV
+line bay (Bus
+14
+--- Page 15 ---
+CEA-PS-12-13/3/2019-PSPA-II Division-Part(1) I/63906/2026
+Section-1) at
+Mandsaur S/s for 31.12.2029
+600 MW RPP of
+M/s Sprng Green
+Energy2 Pvt. Ltd.
+(2200000824)
+2. Implementation of 2 Power Grid Rs. 10.64 31.03.2026 18 months from
+nos. 220 kV line Corporation Cr the date of award
+bays at Shujalpur of India Ltd.
+(PG) S/s
+3. Eastern Region Power Grid Rs. 17.91 31.03.2026 21 months from
+Expansion Scheme- Corporation Cr the date of award
+50: Spare reactor at of India Ltd.
+Sundargarh
+4. Eastern Region Power Grid Rs. 30.20 31.03.2026 24 months from
+Expansion Scheme- Corporation Cr the date of award
+50: Purnea 220/132 of India Ltd.
+kV 4th ICT
+4.5.2 Members noted the same.
+4.6 Implementation of Dynamic Line Rating (DLR) system
+4.6.1 Chief Engineer (PSPA-I), CEA stated that in the 19th meeting of NCT held on
+29.04.2024, it was directed to expedite pilot project on dynamic line rating (DLR).
+4.6.2 She further informed that meetings were held on 14.01.2026 and 16.02.2026 to
+discuss candidate transmission lines for implementation of Dynamic Line Ratings. In
+that meeting, POWERGRID stated that they have implemented DLR in the Madurai-
+Tuticorin 400 kV D/c line (Quad Moose) which was having very high loading at the
+time of conceptualization of the DLR. The line length is around 95 km and 18 DLR
+sensors have been installed. However, post DLR implementation, loading on the line
+has been low and has not even reached its design rating. Therefore, real advantage of
+DLR have not been realized till date.
+4.6.3 She informed that CTUIL and Grid India had suggested that following two lines
+which are heavily loaded may be considered for implementation of DLR
+Sl. Name of Ownership Length Conducto Operation Maximum Remarks
+No the (Km) r Type al Limit loading
+. element (MVA) recorded during
+1st Jan 2025 to
+31st Dec 2025
+(Date and Time)
+1 Jhatikr DTL + 17 Quad 1962 1275 MW on 1. Linked to RE
+15

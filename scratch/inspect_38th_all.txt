@@ -1,0 +1,96 @@
+--- Page 1 has 1 tables ---
+Table 0 headers: [None, '(बै(cid:21).एसे.बै*र(cid:2)(cid:9) / B.S. Bairwa)', None, None, None, None]
+--- Page 2 has 1 tables ---
+Table 0 headers: ['1.', 'Chairperson,\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.', '2.', 'Member (Power Systems),\nCentral Electricity Authority\nSewa Bhawan, R.K. Puram,\nNew Delhi – 110 066.']
+--- Page 4 has 3 tables ---
+Table 0 headers: ['Confirmation of the minutes of the 37', 'th', 'meeting of National Committee on']
+Table 1 headers: ['Status of the transmission schemes noted/approved/recommended to MoP in the 37', 'th']
+Table 2 headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplement\nation', 'BPC', 'Award/\nGazette\nnotification']
+--- Page 5 has 3 tables ---
+Table 0 headers: ['Sr.\nNo', 'Name of the\nTransmission Scheme', 'Noted/\nRecommended/\nApproved', 'Mode of\nImplement\nation', 'BPC', 'Award/\nGazette\nnotification']
+Table 1 headers: ['S.\nNos.', 'Scheme where modifications were suggested', 'Status']
+--- Page 8 has 2 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Name of Scheme & Tentative\nImplementation Timeframe', 'Estimated Cost\n(₹ Crore)', 'Remarks']
+Table 1 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity /km', 'Implementation\nTime-frame']
+--- Page 9 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity /km', 'Implementation\nTime-frame']
+--- Page 10 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity /km', 'Implementation\nTime-frame']
+--- Page 11 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity /km', 'Implementation\nTime-frame']
+--- Page 12 has 2 tables ---
+Table 0 headers: ['Sl. No.', 'Name of the scheme and tentative\nimplementation timeframe', 'Estimated\nCost (₹\nCrore)', 'Remarks']
+Table 1 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity (MVA) / Line length\n(km)/ Nos.', '₹ Crores']
+--- Page 13 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity (MVA) / Line length\n(km)/ Nos.', '₹ Crores']
+--- Page 14 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity (MVA) / Line length\n(km)/ Nos.', '₹ Crores']
+--- Page 15 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of works', 'Capacity (MVA) / Line length\n(km)/ Nos.', '₹ Crores']
+--- Page 17 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Transmission\nScheme', 'Estim\nated\ncost\n(Cr.)', 'NCT\nmeet\ning', '', 'Implementation\nschedule (Months)', None, 'Remarks']
+--- Page 18 has 2 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Transmission\nScheme', 'Estim\nated\ncost\n(Cr.)', 'NCT\nmeet\ning', '', 'Implementation\nschedule (Months)', None, 'Remarks']
+Table 1 headers: ['SI No', 'Name of Scheme', 'Implementing Agency', 'Estimated Cost\n(Crs)']
+--- Page 19 has 1 tables ---
+Table 0 headers: ['Sr. No.', 'Project', 'Date of 1st Unit SCOD\nof Project', 'Date of SCOD of\nProject']
+--- Page 20 has 2 tables ---
+Table 0 headers: ['Sl. No.', 'Name of the scheme and tentative\nimplementation timeframe', 'Estimated\nCost (₹\nCrore)', 'Remarks']
+Table 1 headers: ['S.\nNo.', 'Scope', 'Capacity (Ckm/MVA)']
+--- Page 21 has 1 tables ---
+Table 0 headers: ['S.\nNo.', 'Scope', 'Capacity (Ckm/MVA)']
+--- Page 22 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Earlier approved in 37th NCT', None, 'Modified scheme', None]
+--- Page 23 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Earlier approved in 37th NCT', None, 'Modified scheme', None]
+--- Page 24 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Earlier approved in 37th NCT', None, 'Modified scheme', None]
+--- Page 25 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Earlier approved in 37th NCT', None, 'Modified scheme', None]
+--- Page 26 has 2 tables ---
+Table 1 headers: ['Sl.\nNo.', 'Scope of the scheme']
+--- Page 27 has 3 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Scope of the scheme']
+Table 1 headers: ['Sl.No', 'Owner of the Line', '48F\nOPGW\n(Length in\nKm)', '96F OPGW\n(Length in\nKm)', 'STM-64\nFOTE\n(Nos.)', 'STM-16\nFOTE\n(Nos.)']
+Table 2 headers: ['Scope', 'Implementing\nAgency', 'Implementa\ntion Mode', 'Cost\nEstimate\n(Approx.)\nin Crs', 'Implementation Timeline']
+--- Page 28 has 2 tables ---
+Table 0 headers: ['Scope', 'Implementing\nAgency', 'Implementa\ntion Mode', 'Cost\nEstimate\n(Approx.)\nin Crs', 'Implementation Timeline']
+Table 1 headers: ['Sl.\nNo.', 'Name of the scheme and tentative\nimplementation timeframe', 'Estimated Cost\n(₹ Crore)', 'Remarks']
+--- Page 29 has 2 tables ---
+Table 1 headers: ['Sl. No.', 'Scope of the scheme']
+--- Page 30 has 2 tables ---
+Table 0 headers: ['Sl.No.', 'Owner of the\nLine', '48F OPGW\n(Length in\nKm)', 'STM-16\nFOTE\n(Nos.)', 'STM-64\nFOTE\n(Nos.)', 'Repeater\nStation']
+Table 1 headers: ['Scope', 'Implementing\nAgency', 'Implementat\nion Mode', 'Cost\nEstimate\n(Approx.)\nin Crs', 'Implementation Timeline']
+--- Page 31 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Name of the scheme and tentative\nimplementation timeframe', 'Estimated Cost\n(₹ Crore)', 'Remarks']
+--- Page 32 has 4 tables ---
+Table 1 headers: ['Sl. No.', 'Scope of the scheme']
+Table 3 headers: ['S.\nNo.', 'Type of\nOscillation', 'Frequency\nRange', 'Antecedent System\nCondition', 'Operational Observations']
+--- Page 33 has 1 tables ---
+Table 0 headers: ['S.\nNo.', 'Type of\nOscillation', 'Frequency\nRange', 'Antecedent System\nCondition', 'Operational Observations']
+--- Page 36 has 2 tables ---
+Table 1 headers: ['S.No.', 'Status', 'RECPDCL', 'PFCCL']
+--- Page 40 has 1 tables ---
+Table 0 headers: ['Sl No', 'Voltage level', 'Name of the Line', None, None, 'IA for OPGW\nlaying/Line\nOwnership', 'Length\n(km)', 'FOTE\nrequirement at\nNode A', 'FOTE requirement at\nNode B', 'Remarks']
+--- Page 41 has 1 tables ---
+Table 0 headers: ['Sl No', 'Voltage level', 'Name of the Line', 'IA for OPGW\nlaying/Line\nOwnership', 'Length\n(km)', 'FOTE\nrequirement at\nNode A', 'FOTE requirement at\nNode B', 'Remarks']
+--- Page 42 has 1 tables ---
+Table 0 headers: ['Sl No', 'Voltage level', 'Name of the Line', 'IA for OPGW\nlaying/Line\nOwnership', 'Length\n(km)', 'FOTE\nrequirement at\nNode A', 'FOTE requirement at\nNode B', 'Remarks']
+--- Page 43 has 1 tables ---
+Table 0 headers: ['Sl No', 'Voltage level', 'Name of the Line', 'IA for OPGW\nlaying/Line\nOwnership', 'Length\n(km)', 'FOTE\nrequirement at\nNode A', 'FOTE requirement at\nNode B', 'Remarks']
+--- Page 44 has 2 tables ---
+Table 0 headers: ['Sl No', 'Voltage level', 'Name of the Line', 'IA for OPGW\nlaying/Line\nOwnership', 'Length\n(km)', 'FOTE\nrequirement at\nNode A', 'FOTE requirement at\nNode B', 'Remarks']
+Table 1 headers: ['Sl.No', 'TOTAL Length of\nOPGW to be laid(km)', 'Total No of FOTE required', 'Implementing Agency', 'Total cost estimate in\nCrs.']
+--- Page 45 has 1 tables ---
+Table 0 headers: ['Sl.No', 'TOTAL Length of\nOPGW to be laid(km)', 'Total No of FOTE required', 'Implementing Agency', 'Total cost estimate in\nCrs.']
+--- Page 46 has 1 tables ---
+Table 0 headers: ['Sl.\nNo.', 'Name of\nthe line', 'Length', 'Voltage\nLevel', 'Requirement\nof STM-16\nFOTE at\nEnd A(in\nNo.)', 'Requirement\nof STM-16\nFOTE at\nEnd B (in\nNo.)', 'IA for\nOPGW\nlaying/Line\nOwnership', 'Remarks']
+--- Page 47 has 1 tables ---
+Table 0 headers: ['', '', '', '', '', '', '', '']
+--- Page 48 has 1 tables ---
+Table 0 headers: ['8.', '765', 'Aurangabad (PG) - Solapur\n(PG)', 'POWERGRID', '279.57', '1 No. (STM-16)', 'Not Required', '1 No. (STM-16)']
+--- Page 49 has 1 tables ---
+Table 0 headers: ['23.', '400', 'Vindhyachal (NTPC) - Satna\nIII (PG)', 'POWERGRID', '258.31', 'Considered in\nSl.No.22', 'Not Required', '1 No. (STM-16)']
+--- Page 50 has 2 tables ---
+Table 0 headers: ['Sl.No.', 'TOTAL Length of OPGW to\nbe laid(km)', 'Total No of FOTE required\nincluding repeater FOTE', 'Required Repeater\nStations', 'Implementing\nAgency', 'Total cost estimate in Crs.']
+Table 1 headers: ['Sl.No.', 'TOTAL Length of OPGW to\nbe laid(km)', 'Total No of FOTE\nrequired\nincluding repeater FOTE', 'Required Repeater\nStation', 'Implementing Agency', 'Total cost estimate\nin Crs.']
