@@ -50,6 +50,14 @@ TABLE_HEADER_KEYWORDS = [
     "implementing", "estimated", "schedule",
 ]
 
+ACTION_KEYWORDS = [
+    "nct approved",
+    "nct recommended",
+    "after detailed deliberations",
+    "detailed scope",
+    "following details",
+]
+
 # ── Lazy agent init ──────────────────────────────────────────────────
 
 _agent: Agent | None = None
@@ -86,8 +94,8 @@ def _get_agent() -> Agent[None, list[NCTElement]]:
 _SYSTEM_PROMPT = """\
 You are a data extraction agent for CEA NCT (National Committee on Transmission) meeting minutes.
 
-You will receive ONLY the relevant page text and table data that contains transmission scheme scope information.
-Each page has already been filtered by keywords — every page you see contains real data.
+You will receive page text plus row-preserved table data from the meeting minutes.
+The extractor scans the full PDF and includes matched pages plus continuation pages.
 
 EXTRACT every element from "Scope of Transmission Scheme" or "Scope of Works" tables.
 
@@ -108,10 +116,147 @@ RULES:
 12. Do NOT hallucinate. Only extract what is explicitly in the text.
 13. Do NOT extract attendee lists, meeting procedures, or non-scope tables.
 14. If scheme heading says "Name of Scheme:" before the scope table, that IS the scheme_name.
+15. Treat tables as authoritative. Use the ROW_ID/column mapping exactly; do not merge
+    separate rows unless a row is clearly a continuation of the same table cell.
+16. If one table has "Name of the scheme and tentative implementation timeframe",
+    "Estimated Cost", and "Remarks", and the next table has "Scope of the scheme",
+    combine them into ONE extracted NCTElement for that scheme.
+17. If a scope table continues on the next page, append continuation bullets to the
+    same scope instead of dropping them.
 """
 
 
 # ── Page Extraction ──────────────────────────────────────────────────
+
+def _clean_cell(value: object) -> str:
+    """Normalize a table cell while preserving row/cell meaning."""
+    if value is None:
+        return ""
+    text = str(value).replace("\uf0b7", "-")
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*", " / ", text)
+    return text.strip()
+
+
+def _row_text(row: list[object]) -> str:
+    return " ".join(_clean_cell(c) for c in row if _clean_cell(c)).strip()
+
+
+def _is_probable_header(row: list[object]) -> bool:
+    return _header_score(row) > 0
+
+
+def _header_score(row: list[object]) -> int:
+    text = _row_text(row).lower()
+    if not text:
+        return 0
+
+    score = sum(1 for kw in TABLE_HEADER_KEYWORDS if kw in text)
+    if re.search(r"\b(s\.?\s*no|sl\.?\s*no|sr\.?\s*no)\b", text):
+        score += 3
+    if "scope" in text:
+        score += 3
+    if "name of the scheme" in text:
+        score += 3
+    if "implementation" in text and ("timeline" in text or "timeframe" in text):
+        score += 2
+    if "estimated" in text and "cost" in text:
+        score += 1
+
+    cells = [_clean_cell(c) for c in row]
+    non_empty = sum(1 for c in cells if c)
+    if non_empty <= max(1, len(cells) // 3):
+        score -= 1
+
+    return max(score, 0)
+
+
+def _table_header_index(table: list[list[object]]) -> int:
+    candidates = [(idx, _header_score(row)) for idx, row in enumerate(table[:4])]
+    candidates = [c for c in candidates if c[1] > 0]
+    if not candidates:
+        return 0
+    return max(candidates, key=lambda item: (item[1], -item[0]))[0]
+
+
+def _merge_headers(table: list[list[object]], header_idx: int) -> list[str]:
+    width = max((len(r) for r in table if r), default=0)
+    header_row = list(table[header_idx]) + [""] * width
+    headers: list[str] = []
+
+    for col in range(width):
+        parts: list[str] = []
+        for r_idx in range(max(0, header_idx - 1), header_idx):
+            row = table[r_idx] + [""] * width
+            val = _clean_cell(row[col])
+            if val and val.lower() not in {"none", "null"}:
+                parts.append(val)
+
+        val = _clean_cell(header_row[col])
+        if val:
+            parts.append(val)
+
+        header = " / ".join(dict.fromkeys(parts)).strip()
+        headers.append(header or f"Column {col + 1}")
+
+    return headers
+
+
+def _is_relevant_table(table: list[list[object]]) -> bool:
+    if not table or len(table) < 2:
+        return False
+    header_idx = _table_header_index(table)
+    header_text = " ".join(_merge_headers(table, header_idx)).lower()
+    body_text = " ".join(_row_text(row).lower() for row in table[header_idx + 1:header_idx + 4])
+    combined = f"{header_text} {body_text}"
+    return any(kw in combined for kw in TABLE_HEADER_KEYWORDS + ["scheme", "scope"])
+
+
+def _format_markdown_row(values: list[str]) -> str:
+    escaped = [v.replace("|", "/") for v in values]
+    return "| " + " | ".join(escaped) + " |"
+
+
+def _serialize_table(table: list[list[object]], page_num: int, table_idx: int) -> str:
+    """Serialize a PDF table without losing row/column boundaries."""
+    if not table:
+        return ""
+
+    header_idx = _table_header_index(table)
+    headers = ["ROW_ID"] + _merge_headers(table, header_idx)
+    rows = table[header_idx + 1:]
+    width = len(headers) - 1
+
+    markdown = [
+        f"Table P{page_num}-T{table_idx} (row-preserved):",
+        _format_markdown_row(headers),
+        _format_markdown_row(["---"] * len(headers)),
+    ]
+    row_objects: list[dict[str, str]] = []
+
+    for row_idx, raw_row in enumerate(rows, 1):
+        padded = list(raw_row) + [""] * width
+        values = [_clean_cell(padded[col]) for col in range(width)]
+        if not any(values):
+            continue
+        row_id = f"P{page_num}-T{table_idx}-R{row_idx}"
+        markdown.append(_format_markdown_row([row_id] + values))
+        row_objects.append({"ROW_ID": row_id, **dict(zip(headers[1:], values))})
+
+    if not row_objects:
+        return ""
+
+    return "\n".join(markdown) + "\nROW_JSON:\n" + json.dumps(row_objects, ensure_ascii=False, indent=2)
+
+
+def _looks_like_continuation(text: str) -> bool:
+    stripped = text.lstrip()
+    lower = stripped.lower()
+    return (
+        stripped.startswith(("-", "•", "\uf0b7", "*"))
+        or bool(re.match(r"^(?:[ivxlcdm]+\.|\d+\.|[a-z]\))\s+", lower))
+        or lower.startswith(("note:", "quantity", "amc includes"))
+    )
 
 
 def _extract_relevant_pages(pdf_path: str) -> list[dict]:
@@ -142,7 +287,7 @@ def _extract_relevant_pages(pdf_path: str) -> list[dict]:
         "capacity /ckm",
     ]
 
-    relevant = []
+    page_infos: list[dict] = []
 
     with pdfplumber.open(pdf_path) as pdf:
         total = len(pdf.pages)
@@ -155,9 +300,7 @@ def _extract_relevant_pages(pdf_path: str) -> list[dict]:
 
             has_strong = any(kw in lower for kw in STRONG)
             has_weak = any(kw in lower for kw in WEAK)
-
-            if not has_strong and not has_weak:
-                continue
+            has_action = any(kw in lower for kw in ACTION_KEYWORDS)
 
             # Extract tables from this page
             tables_text = ""
@@ -165,45 +308,43 @@ def _extract_relevant_pages(pdf_path: str) -> list[dict]:
             tables = page.extract_tables() or []
 
             for j, table in enumerate(tables):
-                if not table or len(table) < 2:
+                if not _is_relevant_table(table):
                     continue
-
-                # Try to find the real header row — some tables have
-                # merged cells where pdfplumber gives empty first row
-                header_row = table[0]
-                header_str = " ".join(str(c) for c in header_row if c).lower()
-
-                # If >50% of header cells are empty, try row 1
-                empty_ratio = sum(1 for c in header_row if not c or not str(c).strip()) / max(len(header_row), 1)
-                if empty_ratio > 0.5 and len(table) > 2:
-                    row1_str = " ".join(str(c) for c in table[1] if c).lower()
-                    # Merge row 0 + row 1 as combined header
-                    header_str = header_str + " " + row1_str
-
-                is_relevant_table = any(kw in header_str for kw in TABLE_HEADER_KEYWORDS)
-
-                if is_relevant_table:
+                serialized = _serialize_table(table, i + 1, j)
+                if serialized:
                     has_table = True
-                    tables_text += f"\nTable {j} (structured):\n"
-                    tables_text += json.dumps(table, ensure_ascii=False) + "\n"
+                    tables_text += "\n" + serialized + "\n"
 
+            found_keywords = [kw for kw in STRONG + WEAK + ACTION_KEYWORDS if kw in lower]
+            direct_match = has_strong or has_action or (has_weak and has_table)
+            page_infos.append({
+                "page": i + 1,
+                "total_pages": total,
+                "text": text,
+                "tables_text": tables_text,
+                "has_table": has_table,
+                "keywords": found_keywords,
+                "direct_match": direct_match,
+                "has_strong": has_strong,
+                "has_weak": has_weak,
+                "has_action": has_action,
+            })
 
-            # Decision: include page?
-            # Strong keyword → always include
-            # Weak keyword → only if page has a relevant table
-            if has_strong or (has_weak and has_table):
-                found_keywords = [kw for kw in STRONG + WEAK if kw in lower]
-                relevant.append({
-                    "page": i + 1,
-                    "total_pages": total,
-                    "text": text,
-                    "tables_text": tables_text,
-                    "has_table": has_table,
-                    "keywords": found_keywords,
-                })
+    include_indexes: set[int] = set()
+    for idx, info in enumerate(page_infos):
+        if not info["direct_match"]:
+            continue
+        include_indexes.add(idx)
+        # Previous page often contains the section heading for scope/table pages.
+        if idx > 0 and (info["has_strong"] or info["has_weak"]):
+            include_indexes.add(idx - 1)
+        # Next page often contains continuation rows/bullets from the same table.
+        if idx + 1 < len(page_infos):
+            nxt = page_infos[idx + 1]
+            if nxt["has_table"] or _looks_like_continuation(nxt["text"]):
+                include_indexes.add(idx + 1)
 
-
-    return relevant
+    return [page_infos[idx] for idx in sorted(include_indexes)]
 
 
 def _try_camelot_tables(pdf_path: str, page_numbers: list[int]) -> dict[int, str]:
@@ -238,13 +379,16 @@ def _try_camelot_tables(pdf_path: str, page_numbers: list[int]) -> dict[int, str
 def _build_page_context(page_data: dict, camelot_csv: str | None = None) -> str:
     """Build the text context for one page to send to LLM."""
     parts = [f"--- Page {page_data['page']} of {page_data['total_pages']} ---"]
+    if page_data.get("keywords"):
+        parts.append("Matched signals: " + ", ".join(page_data["keywords"]))
     parts.append(page_data["text"])
 
-    if camelot_csv:
-        parts.append(f"\n[Camelot CSV data for page {page_data['page']}]:")
-        parts.append(camelot_csv)
-    elif page_data["tables_text"]:
+    if page_data["tables_text"]:
+        parts.append("\n[Row-preserved pdfplumber table data]:")
         parts.append(page_data["tables_text"])
+    if camelot_csv:
+        parts.append(f"\n[Camelot CSV backup for page {page_data['page']}]:")
+        parts.append(camelot_csv)
 
     return "\n".join(parts)
 
