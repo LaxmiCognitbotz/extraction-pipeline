@@ -16,6 +16,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from nct_extraction.extractor import extract_from_pdf
+from nct_extraction.reporting import build_report
 from nct_extraction.to_excel import write_excel
 
 
@@ -61,7 +62,8 @@ def main():
             for attempt in range(max_retries):
                 try:
                     data = extract_from_pdf(pdf_path)
-                    data_dict = data.model_dump()
+                    report = build_report(data.meeting_name, data.source_pdf, data.elements)
+                    data_dict = report.to_output_dict()
 
                     # Save individual result
                     with open(json_path, "w", encoding="utf-8") as f:
@@ -112,9 +114,9 @@ def main():
     print(f"Master Excel saved: {master_excel}")
 
     # ── Summary ──
-    total_elements = sum(len(r.get("elements", [])) for r in results)
-    files_with_data = sum(1 for r in results if r.get("elements"))
-    print(f"\nDone: {files_with_data}/{total} files yielded data, {total_elements} total elements")
+    total_rows = sum(len(r.get("rows", [])) for r in results)
+    files_with_data = sum(1 for r in results if r.get("rows"))
+    print(f"\nDone: {files_with_data}/{total} files yielded data, {total_rows} total rows")
 
 
 if __name__ == "__main__":

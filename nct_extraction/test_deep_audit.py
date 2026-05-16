@@ -5,7 +5,6 @@ Reports: broken headers, empty tables, misaligned columns, missing data.
 """
 import os
 import sys
-import json
 import pdfplumber
 from pathlib import Path
 

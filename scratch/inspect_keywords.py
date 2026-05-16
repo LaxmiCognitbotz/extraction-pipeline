@@ -1,5 +1,5 @@
 """Quick inspect: dump pages that have scope keywords from one PDF."""
-import pdfplumber, sys, json
+import pdfplumber, sys
 
 pdf_path = sys.argv[1] if len(sys.argv) > 1 else r"d:\Projects\extraction-pipeline\uploads\CEA-NCT-Minutes\01_40th_NCT_MoM.pdf"
 

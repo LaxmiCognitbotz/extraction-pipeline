@@ -1,6 +1,5 @@
 from pathlib import Path
 from app.converter import convert_pdf_to_markdown
-from app.config import settings
 
 def main():
     pdf_path = Path("uploads/CTUIL-Transmission-Reports/2026/03_March/TBCB_UC_Report.pdf")

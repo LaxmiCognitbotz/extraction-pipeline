@@ -2,7 +2,7 @@
 import sys
 sys.stdout.reconfigure(encoding="utf-8")
 
-from app.schemas import TransmissionElement, ExtractionResult, DocType
+from app.schemas import TransmissionElement, DocType
 from app.business_logic import (
     post_process_elements, generate_inter_intra, parse_mva_from_text,
     compute_percentages

@@ -1,7 +1,8 @@
 """Test the keyword-filtered page extraction (NO LLM) on multiple PDFs.
 Shows exactly what text would be sent to the LLM for each file.
 """
-import sys, os, json
+import sys
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

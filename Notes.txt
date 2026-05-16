@@ -1,0 +1,53 @@
+Transmission Scheme	
+Transmission Scope	
+MVA	
+Status	
+Approval of Elements in which NCT	
+Source	
+Tender Issuing Authority	
+Date of tender issuance	 
+Date of Bid Submission
+Execution Timeline	
+Tentative SCOD	
+Awarded To	
+Project Cost (Cr.)
+SPV Transfer Date
+
+==========
+Each column logic -
+
+Transmission Scheme	and Transmission Scope -> these data is found inside the NCT pdfs with in the tabular structure and also in pragraph structuer also like header, and scoper elemnts are written in the below that header also 
+
+
+MVA -> 
+from the Transmission Scope you havr to check the MVAwith how many multicant are ther elike this -
+
+3x1500MVA ,765/400kV GIS substation at Narela -> 3x1500MVA(MVA)
+765/400kV 3x1500MVA Ahmedabad New S/s -> 3x1500MVA -> 4500 (MVA)
+765/400kV 4x1500MVA KPS2 New SS (GIS)->  4x1500MVA -> 6000 (MVA)
+Establishment of 6x1500 MVA (along with one spare unit of 500MVA), 765/400 kV & 5x500 MVA 400/220 kV Bikaner-III Pooling
+Station" -> 6x1500 MVA + 5x500 MVA -> 11500 
+
+Status -> it is always written as Approved
+Source -> It is always be NCT 
+
+Approval of Elements in which NCT -> From which pdf we extrat the data it is taken from he file names or during extraction process also we can see in text which pdf it was 
+
+Tender Issuing Authority-> Bid Process Coordinator likke example -> RECPDCL, RECDPCL or anything written.
+
+Date of tender issuance -> 
+Example ->
+Transmission Scope -> Transmission system for Evacuation of Power from RE Projects in Rajgarh (1500 MW) SEZ in Madhya Pradesh-Phase III and Evacuation of Power from RE Projects in Neemuch (1000 MW) SEZ in Madhya Pradesh-Phase II
+
+From thsis take the whole Transmission Scope to the respective Tender Issuing Authority site search on this in taht there was i already made a scrper you have just put the scope name it download the pdfs and you ahve to go through the pds one by one RFP Document pdf was ther in that first page there was date bottom right corner you have to extravt theta as am Date of tender issuance  date.
+
+Date of Bid Submission -> Go through the each Amendment I pdfs and bid submission date thta particular transmission scope element.
+
+Execution Timeline -> on the base of yransmission scheme there was an Implementation timeframe was written like 25 montsh, 52 months you have to exract that and but them ino the  Execution Timeline as simple 25 or 52 like tahtb
+
+
+Tentative SCOD -> from the Amendment pdfs tale the laast Amendment pdf from taht table tak the last date from the vernt table and  extract thet date then in that date add the Execution Timeline then wgatvewr new date came it is Tentative SCOD
+
+Awarded To -> from Tender Issuing Authority i download the multiple pdf from taht you have to exttrt the Results anmed pdf in that for that on basis of transmission scheme you ahve o get the Rank of Bidder names extrct simple.
+
+Project Cost (Cr.) -> WHere the transmission schema and transmission scope was written in taht also mention the Project Cost (Cr.) as it is. you have to ext5rct thet aslo 

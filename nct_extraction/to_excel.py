@@ -1,21 +1,17 @@
-"""Convert NCT extraction results (JSON) → Excel workbook.
+"""Convert NCT report results (JSON) → Excel workbook.
 
-Creates a single sheet with one row per element, columns matching
-the TBCB UC report structure.
+Creates a single sheet with one row per extracted scope item and columns matching
+the required reporting structure.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any
-
 
 def write_excel(results: list[dict], output_path: str) -> None:
-    """Write a list of NCTExtractionResult dicts to an Excel file.
+    """Write a list of NCTReport dicts to an Excel file.
 
     Args:
-        results: List of dicts, each with 'meeting_name' and 'elements'.
+        results: List of dicts, each with 'meeting_name' and 'rows'.
         output_path: Path to the .xlsx output file.
     """
     try:
@@ -46,15 +42,19 @@ def write_excel(results: list[dict], output_path: str) -> None:
     headers = [
         "S.No.",
         "Meeting Name",
-        "Element Code",
         "Transmission Scheme",
         "Transmission Scope",
         "MVA",
-        "Length",
-        "Execution Timeline",
-        "Tender Issuing Authority",
-        "Project Cost (Cr.) (NCT)",
+        "Status",
         "Source",
+        "Approval of Elements in which NCT",
+        "Tender Issuing Authority",
+        "Date of Tender Issuance",
+        "Date of Bid Submission",
+        "Execution Timeline (Months)",
+        "Tentative SCOD",
+        "Awarded To",
+        "Project Cost (Cr.)",
     ]
 
     for col, header in enumerate(headers, 1):
@@ -72,27 +72,25 @@ def write_excel(results: list[dict], output_path: str) -> None:
 
     for result in results:
         meeting = result.get("meeting_name", "")
-        elements = result.get("elements", [])
+        rows = result.get("rows", [])
 
-        for elem in elements:
-            length_val = None
-            if "Physical Progress S/s of Tx. Line" in elem and isinstance(elem["Physical Progress S/s of Tx. Line"], dict):
-                length_val = elem["Physical Progress S/s of Tx. Line"].get("Length")
-            else:
-                length_val = elem.get("length_km")
-
+        for elem in rows:
             values = [
                 serial,
                 meeting,
-                elem.get("Element Code") or elem.get("element_code", ""),
-                elem.get("Transmission Scheme") or elem.get("scheme_name", ""),
-                elem.get("Transmission Scope") or elem.get("scope", ""),
-                elem.get("MVA") if "MVA" in elem else elem.get("capacity_mva"),
-                length_val,
-                elem.get("Execution Timeline") or elem.get("execution_timeline", ""),
-                elem.get("Tender Issuing Authority") or elem.get("tender_issuing_authority", ""),
-                elem.get("Project Cost (Cr.) (NCT)") if "Project Cost (Cr.) (NCT)" in elem else elem.get("project_cost_cr"),
-                elem.get("Source") or elem.get("source", ""),
+                elem.get("transmission_scheme", ""),
+                elem.get("transmission_scope", ""),
+                elem.get("mva"),
+                elem.get("status", ""),
+                elem.get("source", ""),
+                elem.get("approval_of_elements_in_which_nct", ""),
+                elem.get("tender_issuing_authority", ""),
+                _fmt_date(elem.get("date_of_tender_issuance")),
+                _fmt_date(elem.get("date_of_bid_submission")),
+                elem.get("execution_timeline_months"),
+                _fmt_date(elem.get("tentative_scod")),
+                elem.get("awarded_to", ""),
+                elem.get("project_cost_cr", ""),
             ]
 
             for col, value in enumerate(values, 1):
@@ -105,7 +103,7 @@ def write_excel(results: list[dict], output_path: str) -> None:
             serial += 1
 
     # ── Column widths ──
-    col_widths = [8, 20, 12, 45, 60, 14, 12, 25, 22, 18, 20]
+    col_widths = [8, 22, 45, 70, 10, 12, 10, 26, 24, 18, 18, 16, 16, 28, 18]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 
@@ -125,9 +123,21 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
 
     csv_path = output_path.replace(".xlsx", ".csv")
     headers = [
-        "S.No.", "Meeting Name", "Element Code", "Transmission Scheme", "Transmission Scope",
-        "MVA", "Length", "Execution Timeline", "Tender Issuing Authority",
-        "Project Cost (Cr.) (NCT)", "Source",
+        "S.No.",
+        "Meeting Name",
+        "Transmission Scheme",
+        "Transmission Scope",
+        "MVA",
+        "Status",
+        "Source",
+        "Approval of Elements in which NCT",
+        "Tender Issuing Authority",
+        "Date of Tender Issuance",
+        "Date of Bid Submission",
+        "Execution Timeline (Months)",
+        "Tentative SCOD",
+        "Awarded To",
+        "Project Cost (Cr.)",
     ]
 
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -137,26 +147,36 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
         serial = 1
         for result in results:
             meeting = result.get("meeting_name", "")
-            for elem in result.get("elements", []):
-                length_val = None
-                if "Physical Progress S/s of Tx. Line" in elem and isinstance(elem["Physical Progress S/s of Tx. Line"], dict):
-                    length_val = elem["Physical Progress S/s of Tx. Line"].get("Length")
-                else:
-                    length_val = elem.get("length_km", "")
-
+            for elem in result.get("rows", []):
                 writer.writerow([
                     serial,
                     meeting,
-                    elem.get("Element Code") or elem.get("element_code", ""),
-                    elem.get("Transmission Scheme") or elem.get("scheme_name", ""),
-                    elem.get("Transmission Scope") or elem.get("scope", ""),
-                    elem.get("MVA", "") if "MVA" in elem else elem.get("capacity_mva", ""),
-                    length_val,
-                    elem.get("Execution Timeline") or elem.get("execution_timeline", ""),
-                    elem.get("Tender Issuing Authority") or elem.get("tender_issuing_authority", ""),
-                    elem.get("Project Cost (Cr.) (NCT)", "") if "Project Cost (Cr.) (NCT)" in elem else elem.get("project_cost_cr", ""),
-                    elem.get("Source") or elem.get("source", ""),
+                    elem.get("transmission_scheme", ""),
+                    elem.get("transmission_scope", ""),
+                    elem.get("mva", ""),
+                    elem.get("status", ""),
+                    elem.get("source", ""),
+                    elem.get("approval_of_elements_in_which_nct", ""),
+                    elem.get("tender_issuing_authority", ""),
+                    _fmt_date(elem.get("date_of_tender_issuance")),
+                    _fmt_date(elem.get("date_of_bid_submission")),
+                    elem.get("execution_timeline_months", ""),
+                    _fmt_date(elem.get("tentative_scod")),
+                    elem.get("awarded_to", ""),
+                    elem.get("project_cost_cr", ""),
                 ])
                 serial += 1
 
     print(f"[csv] Wrote {serial - 1} rows to {csv_path} (openpyxl not available)")
+
+
+def _fmt_date(val) -> str:
+    if not val:
+        return ""
+    # report.to_output_dict() uses ISO strings for date fields.
+    if isinstance(val, str):
+        return val
+    try:
+        return val.isoformat()
+    except Exception:
+        return str(val)

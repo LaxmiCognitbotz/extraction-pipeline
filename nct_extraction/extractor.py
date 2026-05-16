@@ -99,7 +99,7 @@ RULES:
    Keep scope SEPARATE from scheme_name.
 4. capacity_mva: compute total. "3x1500MVA" = 4500.0. Only for substations/ICTs. null for lines.
 5. length_km: from "Capacity/km" or "Length" column. Only for lines. null for substations.
-6. project_cost_cr: from "Estimated Cost" / "Cost" columns. May be per-element or per-scheme.
+6. project_cost_text: from "Estimated Cost" / "Cost" columns. Preserve EXACTLY as written (including ₹/Rs, commas, approx).
 7. execution_timeline: from "Timeline" / "Schedule" / "Timeframe" columns.
 8. tender_issuing_authority: from "Implementing Agency" / "BPC" columns.
 9. implementation_mode: "TBCB" or "RTM" if stated.
@@ -336,7 +336,7 @@ def extract_from_pdf(pdf_path: str) -> NCTExtractionResult:
 
     if not relevant_pages:
         print(f"[nct]   No scope keywords found in any page. Skipping.")
-        return NCTExtractionResult(meeting_name=meeting_name, elements=[])
+        return NCTExtractionResult(meeting_name=meeting_name, source_pdf=filename, elements=[])
 
     print(f"[nct]   {len(relevant_pages)} pages matched keywords (out of {relevant_pages[0]['total_pages']} total)")
 
@@ -389,7 +389,7 @@ def extract_from_pdf(pdf_path: str) -> NCTExtractionResult:
     _post_process(all_elements, meeting_name)
 
     print(f"[nct]   DONE: {len(all_elements)} elements in {elapsed:.1f}s")
-    return NCTExtractionResult(meeting_name=meeting_name, elements=all_elements)
+    return NCTExtractionResult(meeting_name=meeting_name, source_pdf=filename, elements=all_elements)
 
 
 def _post_process(elements: list[NCTElement], meeting_name: str):

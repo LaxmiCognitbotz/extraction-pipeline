@@ -1,5 +1,4 @@
 import pdfplumber
-import os
 
 pdf_path = r"d:\Projects\extraction-pipeline\uploads\CEA-NCT-Minutes\01_40th_NCT_MoM.pdf"
 

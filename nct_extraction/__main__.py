@@ -17,6 +17,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from nct_extraction.extractor import extract_from_pdf
+from nct_extraction.reporting import build_report
 from nct_extraction.to_excel import write_excel
 
 
@@ -29,7 +30,8 @@ def process_single(pdf_path: str, output_dir: str) -> dict | None:
 
     try:
         result = extract_from_pdf(pdf_path)
-        data = result.to_mapped_dict()
+        report = build_report(result.meeting_name, result.source_pdf, result.elements)
+        data = report.to_output_dict()
 
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -72,7 +74,8 @@ def process_directory(dir_path: str, output_dir: str):
 
         try:
             result = extract_from_pdf(pdf_path)
-            data = result.to_mapped_dict()
+            report = build_report(result.meeting_name, result.source_pdf, result.elements)
+            data = report.to_output_dict()
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             results.append(data)

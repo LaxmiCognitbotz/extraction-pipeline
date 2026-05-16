@@ -1,6 +1,5 @@
 import pdfplumber
 import os
-import json
 
 pdf_dir = r"d:\Projects\extraction-pipeline\uploads\CEA-NCT-Minutes"
 all_files = [f for f in os.listdir(pdf_dir) if f.endswith(".pdf")]

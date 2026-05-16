@@ -2,7 +2,6 @@
 No LLM calls — just pdfplumber extraction to verify coverage.
 """
 import os
-import json
 import pdfplumber
 
 PDF_DIR = r"d:\Projects\extraction-pipeline\uploads\CEA-NCT-Minutes"
