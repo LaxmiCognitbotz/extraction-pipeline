@@ -374,7 +374,9 @@ def build_report(
     tender_download_root: Path | None = None,
 ) -> NCTReport:
     download_root = tender_download_root or (Path(__file__).parent.parent / "uploads")
-    auto_download = os.getenv("AUTO_DOWNLOAD_TENDERS", "false").strip().lower() in {"1", "true", "yes", "y"}
+    # Permanent default: ON. Disable by setting DISABLE_AUTO_DOWNLOAD_TENDERS=true.
+    disable_auto = os.getenv("DISABLE_AUTO_DOWNLOAD_TENDERS", "false").strip().lower() in {"1", "true", "yes", "y"}
+    auto_download = not disable_auto
     max_downloads = int(os.getenv("AUTO_DOWNLOAD_TENDERS_MAX", "3") or "3")
 
     preferred_dirs: dict[tuple[str, str], Path] = {}
