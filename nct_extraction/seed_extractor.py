@@ -25,6 +25,17 @@ from typing import List, Optional
 import pdfplumber
 from pydantic import BaseModel, Field
 
+# Suppress camelot temp-file PermissionError on Windows at exit
+import shutil as _shutil
+_orig_rmtree = _shutil.rmtree
+def _safe_rmtree(*args, **kwargs):
+    try:
+        _orig_rmtree(*args, **kwargs)
+    except PermissionError:
+        pass
+_shutil.rmtree = _safe_rmtree
+
+
 # ── Registry path ──────────────────────────────────────────────────────
 _DEFAULT_REGISTRY_PATH = Path(__file__).parent / "output" / "scheme_seed_registry.json"
 
@@ -99,27 +110,78 @@ def _get_seed_agent():
 _SEED_SYSTEM_PROMPT = """\
 You are a precise data extraction agent for CEA NCT (National Committee on Transmission) meeting minutes.
 
-Your ONLY task: extract transmission scheme names from the "Status of previous meetings" section of an NCT meeting PDF.
+Your ONLY task: extract transmission scheme names from sections describing the status of schemes
+approved or recommended in PREVIOUS NCT meetings (not the current meeting being documented).
 
-This section always looks like:
-  "2 Status of the transmission schemes noted/approved/recommended to MoP in the 38th & 39th meeting of NCT"
-  "2.1 Status of the transmission schemes noted/approved/recommended to MoP in the 38th meeting of NCT"
+THESE SECTIONS CAN APPEAR IN TWO FORMATS:
 
-Each sub-section has a table with columns:
-  Sr.No. | Name of the Transmission Scheme | Noted/Recommended/Approved | Mode | BPC | Gazette notification
+FORMAT 1 — TABLE (most common in newer PDFs):
+  Heading: "2 Status of the transmission schemes noted/approved/recommended to MoP in the 38th & 39th meeting of NCT"
+  Sub-heading: "2.1 Status of new transmission schemes approved/recommended:"
+  Table columns: Sr.No. | Name of the Transmission Scheme | Noted/Recommended/Approved | Mode | BPC | Gazette notification
+  The meeting group may appear as a row inside the table (e.g. "22nd NCT Meeting" as a separator row).
 
-Your output must be a list of SeedMeetingGroup objects, one per unique previous meeting referenced.
+FORMAT 2 — PARAGRAPH (common in older PDFs, no separate table):
+  Text like:
+    "The NCT in its 22nd meeting held on ... approved the following scheme: <Scheme Name>"
+    "Status of new transmission schemes approved/recommended in 22nd NCT meeting:"
+    "Following schemes were noted/approved in the 21st meeting of NCT:"
+    "1. <scheme name>  2. <scheme name>  ..."
+  In this format, scheme names appear as numbered/bulleted lists or inline text.
+
+Your output must be a list of SeedMeetingGroup objects, one per unique PREVIOUS meeting referenced.
 
 RULES:
-1. MEETING LABEL: Extract from the heading. "38th meeting of NCT" → "38th NCT Meeting"
-2. SCHEME NAMES: Extract ONLY from the "Name of the Transmission Scheme" column.
-   - Include the FULL name, even if split across rows (join multi-line cells)
-   - If one table row covers Part A and Part B, return SEPARATE entries for Part A and Part B
-   - Do NOT include BPC names (RECPDCL, PFCCL etc.), gazette info, or status words
-   - Clean up OCR artifacts: 'TTransmission' → 'Transmission'
-3. IGNORE: attendees, meeting procedures, scope-of-works tables for new schemes
-4. Do NOT hallucinate scheme names. Only extract what is explicitly written.
-5. If the table continues on the next page, extract from both pages.
+1. MEETING LABEL: Extract the meeting number from context.
+   - "38th meeting of NCT" → "38th NCT Meeting"
+   - "22nd NCT Meeting" (as table group row) → "22nd NCT Meeting"
+2. SCHEME NAMES — from TABLE format:
+   - Extract from the "Name of the Transmission Scheme" column
+   - Join multi-line cells into one string (but keep Part A and Part B as SEPARATE entries)
+   - Do NOT include: BPC names (RECPDCL, PFCCL etc.), gazette info, status words, dates
+   - Clean OCR artifacts: 'TTransmission' → 'Transmission'
+3. SCHEME NAMES — from PARAGRAPH format:
+   - Extract names from numbered lists or inline text following the approval/recommendation sentence
+   - Include the FULL scheme name as written
+   - A scheme name typically starts with 'Transmission', 'Augmentation', 'Eastern/Western/Northern Region',
+     'ERES-', 'WRES-', 'NERES-', 'NERGS-', 'Network Expansion', 'System for', 'Scheme for', etc.
+4. SCOPE COLUMN: Do NOT extract 'scope' or 'elements' — only the scheme NAME.
+5. IGNORE: attendees, meeting procedures, scope-of-works for NEW schemes in the CURRENT meeting.
+6. Do NOT hallucinate. Only extract what is explicitly written in the text.
+7. If content continues on next page, extract from both pages.
+"""
+
+
+_CURRENT_MEETING_SYSTEM_PROMPT = """\
+You are a precise data extraction agent for CEA NCT (National Committee on Transmission) meeting minutes.
+
+Your task: extract the names of transmission schemes being DISCUSSED, APPROVED, or RECOMMENDED
+for the FIRST TIME in the CURRENT NCT meeting (not from previous meetings' status sections).
+
+These schemes appear in sections like:
+  "4 New Transmission Schemes"
+  "4.1 Transmission scheme for..."
+  "3 New Transmission Schemes"
+  "Agenda item: Recommendation of the following scheme:"
+  Tables with columns: "Name of Scheme / Implementing Agency / Estimated Cost / Date"
+  Tables: "Sl.No. | Name of the scheme and tentative implementation timeframe | Estimated Cost | Remarks"
+
+Your output must be a list of SeedMeetingGroup objects.
+Use meeting_label = the CURRENT meeting (e.g., "40th NCT Meeting").
+
+RULES:
+1. MEETING LABEL: Use the current meeting number provided in the prompt header.
+2. SCHEME NAMES:
+   - Extract the FULL scheme name from sub-section headings ("4.1 Scheme name..."),
+     table "Name of Scheme" columns, or paragraph headings
+   - Include Part A / Part B etc. as SEPARATE entries if they are separate scopes
+   - The heading format: "4.1 Transmission scheme for evacuation of power..." — the scheme name
+     is the text after the number: "Transmission scheme for evacuation of power..."
+   - Join multi-line names into a single clean string
+   - Do NOT include sub-scope items, line descriptions, capacity values, or cost figures as separate entries
+3. Do NOT extract schemes from the 'Status of previous meetings' section.
+4. Do NOT hallucinate. Extract only what is explicitly written.
+5. NORMALISE the name: strip leading/trailing whitespace, join broken lines.
 """
 
 
@@ -329,9 +391,17 @@ def _find_status_pages(pdf_path: str) -> list[tuple[int, list[int]]]:
     """
     Scan all pages, find those with 'Status of schemes from Nth meeting' headings.
     Returns list of (page_number_1indexed, [meeting_nums_referenced]).
-    Groups consecutive status pages together.
+
+    Handles:
+    - Standard: heading on one line with ordinal ("...in the 38th meeting of NCT")
+    - Split: ordinal on next line ("...in the 22nd\nand 23rd meetings of NCT:")
+    - Plural: "meetings of NCT" instead of "meeting of NCT"
     """
     results: list[tuple[int, list[int]]] = []
+    seen_pages: set[int] = set()
+
+    # Pattern: singular OR plural "meeting(s) of NCT"
+    _NCT_MEETING_RE = re.compile(r"meetings?\s+of\s+NCT", re.IGNORECASE)
 
     with pdfplumber.open(pdf_path) as pdf:
         pages_text: list[tuple[int, str]] = []
@@ -339,32 +409,85 @@ def _find_status_pages(pdf_path: str) -> list[tuple[int, list[int]]]:
             txt = page.extract_text() or ""
             pages_text.append((i + 1, txt))
 
-    # Scan for status section headings; look at 3-line lookahead for ordinals
     for page_num, page_text in pages_text:
         if not _STATUS_HEADING_RE.search(page_text):
             continue
 
-        # Skip "modification" sub-sections
         lines = page_text.splitlines()
         for i, line in enumerate(lines):
             if not _STATUS_HEADING_RE.search(line):
                 continue
 
-            lookahead = " ".join(lines[i:i+4])
-            if not re.search(r"meeting\s+of\s+NCT", lookahead, re.IGNORECASE):
-                continue
-            if re.search(r"modification", lookahead, re.IGNORECASE):
+            # ── Filter: must reference "meeting(s) of NCT" within next 5 lines ──
+            lookahead_lines = lines[i:i+5]
+            lookahead = " ".join(lookahead_lines)
+            if not _NCT_MEETING_RE.search(lookahead):
                 continue
 
-            ordinals = _ORDINAL_RE.findall(lookahead)
+            # ── Filter: skip if the heading LINE ITSELF says "modification" ──
+            # (don't filter based on surrounding content — that's too aggressive)
+            if re.search(r"modification", line, re.IGNORECASE):
+                continue
+
+            # ── Extract ordinals from the heading + next 2 lines ──
+            heading_context = " ".join(lines[i:i+3])
+            ordinals = _ORDINAL_RE.findall(heading_context)
             meeting_nums = []
             for ord_str in ordinals:
                 n = _ordinal_to_int(ord_str)
                 if n and n < 100:
                     meeting_nums.append(n)
 
-            if meeting_nums:
+            if meeting_nums and page_num not in seen_pages:
                 results.append((page_num, meeting_nums))
+                seen_pages.add(page_num)
+
+    return results
+
+
+def _find_status_pages_paragraph(pdf_path: str) -> list[tuple[int, list[int]]]:
+    """
+    Fallback: detect pages with paragraph-format status descriptions.
+
+    Older NCT PDFs don't use a standard status table heading. Instead they have
+    paragraphs like:
+      "The NCT in its 22nd meeting held on ... approved the following scheme:"
+      "Status of new transmission schemes approved/recommended in 22nd NCT meeting:"
+      "The following schemes were approved in the 21st meeting of NCT:"
+
+    Returns list of (page_number_1indexed, [meeting_nums_referenced]).
+    """
+    results: list[tuple[int, list[int]]] = []
+    seen_pages: set[int] = set()
+
+    _PARA_STATUS_RE = re.compile(
+        r"(?:"
+        r"NCT\s+in\s+its\s+\d+(?:st|nd|rd|th)\s+meeting"          # NCT in its 22nd meeting
+        r"|status\s+of\s+(?:new\s+)?transmission\s+scheme"          # Status of new transmission scheme
+        r"|following\s+scheme[s]?\s+(?:were|was)\s+approved"        # following schemes were approved
+        r"|approved\s+(?:the\s+)?following\s+(?:transmission\s+)?scheme"  # approved the following scheme
+        r"|scheme[s]?\s+noted\s*/\s*approved\s*/\s*recommended"     # schemes noted/approved/recommended
+        r")",
+        re.IGNORECASE,
+    )
+
+    with pdfplumber.open(pdf_path) as pdf:
+        for i, page in enumerate(pdf.pages):
+            txt = page.extract_text() or ""
+            if not txt.strip() or not _PARA_STATUS_RE.search(txt):
+                continue
+
+            # Extract ordinals from the whole page text
+            ordinals = _ORDINAL_RE.findall(txt)
+            meeting_nums = []
+            for ord_str in ordinals:
+                n = _ordinal_to_int(ord_str)
+                if n and n < 100:
+                    meeting_nums.append(n)
+
+            if meeting_nums and (i + 1) not in seen_pages:
+                results.append((i + 1, meeting_nums))
+                seen_pages.add(i + 1)
 
     return results
 
@@ -437,9 +560,16 @@ def _extract_scheme_names_via_camelot(pdf_path: str, pages: list[int]) -> list[s
             candidates = _split_merged_scheme_names(cell_val)
             for candidate in candidates:
                 cleaned = _clean_scheme_name(candidate)
+
+                # Skip group-separator rows like "22nd NCT Meeting", "23rd NCT Meeting"
+                if re.match(r"^\d+(?:st|nd|rd|th)\s+NCT\s+Meeting\s*$", cleaned, re.IGNORECASE):
+                    continue
+
+                # Skip cells that start with lowercase or special chars (continuation fragments)
+                if cleaned and (cleaned[0].islower() or cleaned[0] in "(-,"):
+                    continue
+
                 if _looks_like_scheme_name(cleaned) and len(cleaned) > 15:
-                    # Avoid truncated entries (like 'ERES-47: Nawada –' without destination)
-                    # Accept them if they're still meaningful
                     scheme_names.append(cleaned)
 
     return scheme_names
@@ -511,7 +641,11 @@ def _extract_scheme_names_heuristic(block_text: str) -> list[str]:
     return scheme_names
 
 
-def _build_seed_llm_context(pdf_path: str, pages: list[int]) -> str:
+def _build_seed_llm_context(
+    pdf_path: str,
+    pages: list[int],
+    paragraph_mode: bool = False,
+) -> str:
     """
     Build a rich context string for the LLM seed agent:
     - Raw page text (pdfplumber)
@@ -532,22 +666,35 @@ def _build_seed_llm_context(pdf_path: str, pages: list[int]) -> str:
                 parts.append(f"--- Page {pg_num} [Raw Text] ---")
                 parts.append(txt)
 
-    # Camelot tables
+    if paragraph_mode:
+        parts.insert(0, (
+            "[MODE: PARAGRAPH] This PDF uses paragraph-format scheme descriptions, not a standard status table.\n"
+            "Look for scheme names in numbered lists, inline text, and paragraph descriptions of\n"
+            "previously approved/recommended/noted schemes from earlier NCT meetings."
+        ))
+
+    # Camelot tables (lattice for bordered tables, stream for borderless)
     try:
         import camelot
         import logging
         logging.getLogger("camelot").setLevel(logging.ERROR)
 
         page_str = ",".join(str(p) for p in pages)
-        tables = camelot.read_pdf(pdf_path, flavor="lattice", pages=page_str, strip_text="\n")
-        for t in tables:
-            if t.df.empty:
+        for flavor in ["lattice", "stream"]:
+            try:
+                tables = camelot.read_pdf(pdf_path, flavor=flavor, pages=page_str, strip_text="\n")
+                for t in tables:
+                    if t.df.empty:
+                        continue
+                    full = " ".join(str(c) for c in t.df.values.flatten()).lower()
+                    # In paragraph_mode, be more inclusive; in table mode, filter to status tables only
+                    if paragraph_mode or any(k in full for k in [
+                        "name of the transmission", "noted", "recommended", "approved", "gazette", "bpc"
+                    ]):
+                        parts.append(f"--- Page {t.page} [Camelot {flavor.title()} Table CSV] ---")
+                        parts.append(t.df.to_csv(index=False))
+            except Exception:
                 continue
-            full = " ".join(str(c) for c in t.df.values.flatten()).lower()
-            # Only include status/scheme tables
-            if any(k in full for k in ["name of the transmission", "noted", "recommended", "approved", "gazette", "bpc"]):
-                parts.append(f"--- Page {t.page} [Camelot Table CSV] ---")
-                parts.append(t.df.to_csv(index=False))
     except Exception:
         pass
 
@@ -558,6 +705,7 @@ def _extract_seeds_via_llm(
     pdf_path: str,
     pages: list[int],
     current_meeting_num: Optional[int] = None,
+    paragraph_mode: bool = False,
 ) -> dict[str, list[str]]:
     """
     Use the LLM to extract scheme names from the status-review section pages.
@@ -568,20 +716,27 @@ def _extract_seeds_via_llm(
     if agent is None:
         return seeds
 
-    context = _build_seed_llm_context(pdf_path, pages)
+    context = _build_seed_llm_context(pdf_path, pages, paragraph_mode=paragraph_mode)
     if not context.strip():
         return seeds
 
-    # Tell the LLM which meeting's PDF this is, so it doesn't confuse the
-    # current meeting's new schemes with the previous meeting's status schemes
     header = "NCT MEETING MINUTES — STATUS SECTION EXTRACTION\n"
     if current_meeting_num:
         header += (
             f"This is the {_int_to_ordinal_label(current_meeting_num)} PDF. "
-            f"Extract scheme names ONLY from the 'Status of schemes from previous meetings' section.\n"
-            f"Do NOT extract new schemes being discussed in this {_int_to_ordinal_label(current_meeting_num)}.\n"
+            f"Extract scheme names ONLY from sections describing schemes from PREVIOUS meetings.\n"
+            f"Do NOT extract new schemes being discussed FOR the first time in "
+            f"{_int_to_ordinal_label(current_meeting_num)}.\n"
         )
-    header += "\nEXTRACT scheme names from the status tables for each referenced previous meeting:\n"
+    if paragraph_mode:
+        header += (
+            "\n[IMPORTANT] This PDF uses PARAGRAPH FORMAT — scheme names appear in inline text or "
+            "numbered lists, not in a standard status table. Look carefully for patterns like:\n"
+            "  - Numbered lists: '1. Scheme name  2. Scheme name'\n"
+            "  - Inline approvals: 'NCT approved ... scheme: <name>'\n"
+            "  - Paragraph sentences describing scheme status\n"
+        )
+    header += "\nEXTRACT scheme names from the content below:\n"
 
     prompt = header + "\n" + context
 
@@ -605,6 +760,85 @@ def _extract_seeds_via_llm(
         print(f"[seed-llm] LLM extraction failed: {e}")
 
     return seeds
+
+
+def _find_new_scheme_pages(pdf_path: str) -> list[int]:
+    """
+    Find pages containing 'New Transmission Schemes' sections.
+    Typically numbered '4 New Transmission Schemes' or '3 New...'
+    Returns list of 1-indexed page numbers.
+    """
+    results: set[int] = set()
+    _NEW_SCHEME_RE = re.compile(
+        r"^(?:\d+\.?\s*)?New\s+Transmission\s+Scheme", re.IGNORECASE
+    )
+
+    with pdfplumber.open(pdf_path) as pdf:
+        for i, page in enumerate(pdf.pages):
+            txt = page.extract_text() or ""
+            if _NEW_SCHEME_RE.search(txt):
+                results.add(i + 1)
+                # Usually spans a few pages, grab up to 5 pages to be safe
+                for offset in range(1, 6):
+                    if i + 1 + offset <= len(pdf.pages):
+                        results.add(i + 1 + offset)
+
+    return sorted(list(results))
+
+
+def _extract_current_meeting_seeds_via_llm(
+    pdf_path: str,
+    pages: list[int],
+    current_meeting_num: int,
+) -> list[str]:
+    """
+    Use the LLM to extract scheme names discussed FOR THE FIRST TIME in this meeting.
+    """
+    agent = _get_seed_agent()
+    if agent is None or not pages:
+        return []
+
+    context = _build_seed_llm_context(pdf_path, pages, paragraph_mode=True)
+    if not context.strip():
+        return []
+
+    header = "NCT MEETING MINUTES — CURRENT MEETING NEW SCHEMES EXTRACTION\n"
+    header += f"This is the {_int_to_ordinal_label(current_meeting_num)} PDF.\n"
+    header += "EXTRACT new transmission scheme names from the text below:\n"
+
+    prompt = header + "\n" + context
+
+    try:
+        # We temporarily override the system prompt for the agent
+        # (pydantic-ai doesn't easily support per-call system prompts on the same Agent instance
+        # without overriding, but we can create a quick temporary agent)
+        from pydantic_ai import Agent
+        from pydantic_ai.settings import ModelSettings
+        from app.llm import get_model, ensure_api_key
+        
+        ensure_api_key()
+        
+        temp_agent = Agent(
+            model=get_model(),
+            output_type=list[SeedMeetingGroup],
+            system_prompt=_CURRENT_MEETING_SYSTEM_PROMPT,
+            retries=2,
+            model_settings=ModelSettings(temperature=0.0, max_tokens=4096, timeout=120),
+        )
+        result = temp_agent.run_sync(prompt)
+        
+        # We should only get one group back, labeled with current_meeting_num
+        schemes = []
+        for grp in result.output:
+            for name in grp.scheme_names:
+                name = _clean_scheme_name(name)
+                if _looks_like_scheme_name(name):
+                    schemes.append(name)
+        return schemes
+
+    except Exception as e:
+        print(f"[seed-llm] Current meeting extraction failed: {e}")
+        return []
 
 
 def _merge_seed_dicts(*dicts: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -640,6 +874,15 @@ def extract_seeds_from_pdf(
 
     # ── Stage 0: Identify status pages ──
     status_pages = _find_status_pages(pdf_path)
+
+    # If no table-format status sections found, try paragraph-format fallback
+    using_paragraph_mode = False
+    if not status_pages:
+        status_pages = _find_status_pages_paragraph(pdf_path)
+        using_paragraph_mode = bool(status_pages)
+        if using_paragraph_mode:
+            print(f"[seed]   Paragraph-mode detection: {len(status_pages)} pages")
+
     if not status_pages:
         return seeds
 
@@ -669,7 +912,10 @@ def extract_seeds_from_pdf(
     # ── Pass 2: LLM (more accurate meeting-level mapping) ──
     llm_seeds: dict[str, list[str]] = {}
     if use_llm:
-        llm_seeds = _extract_seeds_via_llm(pdf_path, unique_pages, current_meeting_num)
+        llm_seeds = _extract_seeds_via_llm(
+            pdf_path, unique_pages, current_meeting_num,
+            paragraph_mode=using_paragraph_mode,
+        )
 
     # ── Pass 3: Heuristic fallback (if both above returned nothing) ──
     heuristic_seeds: dict[str, list[str]] = {}
@@ -685,9 +931,22 @@ def extract_seeds_from_pdf(
                     if name not in heuristic_seeds[label]:
                         heuristic_seeds[label].append(name)
 
+    # ── Pass 4: Extract current meeting's NEW schemes ──
+    current_meeting_seeds: dict[str, list[str]] = {}
+    if use_llm and current_meeting_num:
+        new_scheme_pages = _find_new_scheme_pages(pdf_path)
+        if new_scheme_pages:
+            current_names = _extract_current_meeting_seeds_via_llm(
+                pdf_path, new_scheme_pages, current_meeting_num
+            )
+            if current_names:
+                current_label = _int_to_ordinal_label(current_meeting_num)
+                current_meeting_seeds[current_label] = current_names
+                print(f"[seed]   Found {len(current_names)} new schemes for {current_label}")
+
     # ── Merge all passes ──
     # LLM is preferred (more accurate per-meeting mapping), supplemented by camelot + heuristic
-    seeds = _merge_seed_dicts(llm_seeds, camelot_seeds, heuristic_seeds)
+    seeds = _merge_seed_dicts(llm_seeds, camelot_seeds, heuristic_seeds, current_meeting_seeds)
 
     return seeds
 

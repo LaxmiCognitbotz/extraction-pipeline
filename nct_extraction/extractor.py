@@ -211,13 +211,14 @@ def _extract_chunk(
     seeds_str = ""
     if known_scheme_names:
         seeds_str = (
-            "\nKNOWN SCHEME NAMES for this meeting (harvested from later NCT minutes — use these VERBATIM as scheme_name):\n"
+            "\nKNOWN SCHEME NAMES for this meeting (harvested from seed registry):\n"
         )
         for idx, name in enumerate(known_scheme_names, 1):
             seeds_str += f"  {idx}. {name}\n"
         seeds_str += (
-            "Match scheme names from the document text to the closest entry above. "
-            "Use the exact name from the list when there is a clear match.\n"
+            "IMPORTANT: When you find a scheme in the text, map it to the closest known scheme name above.\n"
+            "The text might have variations (e.g., missing 'Transmission' at the start, or different Part A/Part B formats).\n"
+            "Use FUZZY/SEMANTIC MATCHING. If it's clearly the same scheme, use the EXACT name from the list above.\n"
         )
 
     # ── Previous extraction context for continuations ──

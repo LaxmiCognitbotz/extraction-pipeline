@@ -45,10 +45,11 @@ Date of Bid Submission -> Go through the each Amendment I pdfs and bid submissio
 
 Execution Timeline -> on the base of yransmission scheme there was an Implementation timeframe was written like 25 montsh, 52 months you have to exract that and but them ino the  Execution Timeline as simple 25 or 52 like tahtb
 
-
 Tentative SCOD -> from the Amendment pdfs tale the laast Amendment pdf from taht table tak the last date from the vernt table and  extract thet date then in that date add the Execution Timeline then wgatvewr new date came it is Tentative SCOD
 
 Awarded To -> from Tender Issuing Authority i download the multiple pdf from taht you have to exttrt the Results anmed pdf in that for that on basis of transmission scheme you ahve o get the Rank of Bidder names extrct simple.
 
 Project Cost (Cr.) -> WHere the transmission schema and transmission scope was written in taht also mention the Project Cost (Cr.) as it is. you have to ext5rct thet aslo 
-Length -> Lenth is also written in table 
+
+Length -> Lenth is also written in table
+
