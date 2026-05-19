@@ -134,6 +134,7 @@ class NCTReportRow(BaseModel):
     tentative_scod: Optional[date] = Field(None, description="Bid date + execution timeline months.")
     awarded_to: str = Field("", description="Successful/ranked bidder from result PDFs.")
     project_cost_cr: str = Field("", description="Project Cost (Cr.) as written in NCT PDFs.")
+    length_km: Optional[float] = Field(None, description="Line length in km/ckm from Length/Lenth/CKM column.")
     spv_transfer_date: Optional[date] = Field(None, description="SPV Transfer Date (from tender docs, if available).")
 
     def to_output_dict(self) -> dict:
@@ -155,6 +156,7 @@ class NCTReportRow(BaseModel):
             "Tentative SCOD": fmt(self.tentative_scod),
             "Awarded To": self.awarded_to,
             "Project Cost (Cr.)": self.project_cost_cr,
+            "Length (km)": self.length_km,
             "SPV Transfer Date": fmt(self.spv_transfer_date),
         }
 

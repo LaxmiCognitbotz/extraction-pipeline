@@ -362,6 +362,7 @@ def element_to_report_row(
         tentative_scod=tentative_scod,
         awarded_to=awarded_to,
         project_cost_cr=cost_text,
+        length_km=elem.length_km,
         spv_transfer_date=spv_transfer,
     )
 

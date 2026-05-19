@@ -18,6 +18,7 @@ if project_root not in sys.path:
 from nct_extraction.extractor import extract_from_pdf
 from nct_extraction.reporting import build_report
 from nct_extraction.to_excel import write_excel
+from nct_extraction.seed_extractor import build_seed_registry, load_registry, _DEFAULT_REGISTRY_PATH
 
 
 def main():
@@ -34,6 +35,19 @@ def main():
     all_pdfs = sorted(f for f in os.listdir(input_dir) if f.endswith(".pdf"))
     total = len(all_pdfs)
     print(f"Total PDFs to process: {total}")
+
+    # ───────────────────────────────────────────────────────
+    # PHASE 1: Build / refresh the seed registry
+    # Scans every PDF for "Status of schemes from Nth meeting" tables
+    # and harvests confirmed scheme names as grounding anchors.
+    # ───────────────────────────────────────────────────────
+    registry_path = _DEFAULT_REGISTRY_PATH
+    print("\n" + "="*60)
+    print("PHASE 1: Building Seed Registry (backward-chaining)")
+    print("="*60)
+    seed_registry = build_seed_registry(str(input_dir), registry_path)
+    print(f"Seed registry: {sum(len(v) for v in seed_registry.values())} scheme names across {len(seed_registry)} meetings")
+    print("="*60 + "\n")
 
     results = []
 
@@ -61,7 +75,7 @@ def main():
             success = False
             for attempt in range(max_retries):
                 try:
-                    data = extract_from_pdf(pdf_path)
+                    data = extract_from_pdf(pdf_path, seed_registry=seed_registry)
                     report = build_report(data.meeting_name, data.source_pdf, data.elements)
                     data_dict = report.to_output_dict()
 

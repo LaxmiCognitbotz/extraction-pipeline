@@ -45,6 +45,7 @@ def write_excel(results: list[dict], output_path: str) -> None:
         "Transmission Scheme",
         "Transmission Scope",
         "MVA",
+        "Length (km)",
         "Status",
         "Source",
         "Approval of Elements in which NCT",
@@ -55,6 +56,7 @@ def write_excel(results: list[dict], output_path: str) -> None:
         "Tentative SCOD",
         "Awarded To",
         "Project Cost (Cr.)",
+        "SPV Transfer Date",
     ]
 
     for col, header in enumerate(headers, 1):
@@ -78,19 +80,21 @@ def write_excel(results: list[dict], output_path: str) -> None:
             values = [
                 serial,
                 meeting,
-                elem.get("transmission_scheme", ""),
-                elem.get("transmission_scope", ""),
-                elem.get("mva"),
-                elem.get("status", ""),
-                elem.get("source", ""),
-                elem.get("approval_of_elements_in_which_nct", ""),
-                elem.get("tender_issuing_authority", ""),
-                _fmt_date(elem.get("date_of_tender_issuance")),
-                _fmt_date(elem.get("date_of_bid_submission")),
-                elem.get("execution_timeline_months"),
-                _fmt_date(elem.get("tentative_scod")),
-                elem.get("awarded_to", ""),
-                elem.get("project_cost_cr", ""),
+                elem.get("Transmission Scheme", ""),
+                elem.get("Transmission Scope", ""),
+                elem.get("MVA"),
+                elem.get("Length (km)"),
+                elem.get("Status", ""),
+                elem.get("Source", ""),
+                elem.get("Approval of Elements in which NCT", ""),
+                elem.get("Tender Issuing Authority", ""),
+                _fmt_date(elem.get("Date of tender issuance")),
+                _fmt_date(elem.get("Date of Bid Submission")),
+                elem.get("Execution Timeline"),
+                _fmt_date(elem.get("Tentative SCOD")),
+                elem.get("Awarded To", ""),
+                elem.get("Project Cost (Cr.)", ""),
+                _fmt_date(elem.get("SPV Transfer Date")),
             ]
 
             for col, value in enumerate(values, 1):
@@ -103,7 +107,7 @@ def write_excel(results: list[dict], output_path: str) -> None:
             serial += 1
 
     # ── Column widths ──
-    col_widths = [8, 22, 45, 70, 10, 12, 10, 26, 24, 18, 18, 16, 16, 28, 18]
+    col_widths = [8, 22, 45, 70, 10, 12, 12, 10, 26, 24, 18, 18, 16, 16, 28, 18, 16]
     for i, width in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 
@@ -128,6 +132,7 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
         "Transmission Scheme",
         "Transmission Scope",
         "MVA",
+        "Length (km)",
         "Status",
         "Source",
         "Approval of Elements in which NCT",
@@ -138,6 +143,7 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
         "Tentative SCOD",
         "Awarded To",
         "Project Cost (Cr.)",
+        "SPV Transfer Date",
     ]
 
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -151,19 +157,21 @@ def _write_csv_fallback(results: list[dict], output_path: str) -> None:
                 writer.writerow([
                     serial,
                     meeting,
-                    elem.get("transmission_scheme", ""),
-                    elem.get("transmission_scope", ""),
-                    elem.get("mva", ""),
-                    elem.get("status", ""),
-                    elem.get("source", ""),
-                    elem.get("approval_of_elements_in_which_nct", ""),
-                    elem.get("tender_issuing_authority", ""),
-                    _fmt_date(elem.get("date_of_tender_issuance")),
-                    _fmt_date(elem.get("date_of_bid_submission")),
-                    elem.get("execution_timeline_months", ""),
-                    _fmt_date(elem.get("tentative_scod")),
-                    elem.get("awarded_to", ""),
-                    elem.get("project_cost_cr", ""),
+                    elem.get("Transmission Scheme", ""),
+                    elem.get("Transmission Scope", ""),
+                    elem.get("MVA", ""),
+                    elem.get("Length (km)", ""),
+                    elem.get("Status", ""),
+                    elem.get("Source", ""),
+                    elem.get("Approval of Elements in which NCT", ""),
+                    elem.get("Tender Issuing Authority", ""),
+                    _fmt_date(elem.get("Date of tender issuance")),
+                    _fmt_date(elem.get("Date of Bid Submission")),
+                    elem.get("Execution Timeline", ""),
+                    _fmt_date(elem.get("Tentative SCOD")),
+                    elem.get("Awarded To", ""),
+                    elem.get("Project Cost (Cr.)", ""),
+                    _fmt_date(elem.get("SPV Transfer Date")),
                 ])
                 serial += 1
 

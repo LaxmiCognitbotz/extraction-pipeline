@@ -19,9 +19,12 @@ if project_root not in sys.path:
 from nct_extraction.extractor import extract_from_pdf
 from nct_extraction.reporting import build_report
 from nct_extraction.to_excel import write_excel
+from nct_extraction.seed_extractor import (
+    build_seed_registry, load_registry, _DEFAULT_REGISTRY_PATH
+)
 
 
-def process_single(pdf_path: str, output_dir: str) -> dict | None:
+def process_single(pdf_path: str, output_dir: str, seed_registry: dict | None = None) -> dict | None:
     """Process one PDF and save its JSON."""
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.basename(pdf_path)
@@ -29,7 +32,7 @@ def process_single(pdf_path: str, output_dir: str) -> dict | None:
     json_path = os.path.join(output_dir, json_name)
 
     try:
-        result = extract_from_pdf(pdf_path)
+        result = extract_from_pdf(pdf_path, seed_registry=seed_registry)
         report = build_report(result.meeting_name, result.source_pdf, result.elements)
         data = report.to_output_dict()
 
@@ -52,6 +55,15 @@ def process_directory(dir_path: str, output_dir: str):
     total = len(pdfs)
     print(f"Found {total} PDFs in {dir_path}\n")
 
+    # ── Phase 1: Build seed registry ──
+    print("=" * 60)
+    print("PHASE 1: Building Seed Registry (backward-chaining)")
+    print("=" * 60)
+    seed_registry = build_seed_registry(dir_path, _DEFAULT_REGISTRY_PATH)
+    total_seeds = sum(len(v) for v in seed_registry.values())
+    print(f"Seed registry: {total_seeds} scheme names across {len(seed_registry)} meetings")
+    print("=" * 60 + "\n")
+
     results = []
     log_lines = []
 
@@ -73,7 +85,7 @@ def process_directory(dir_path: str, output_dir: str):
         t0 = time.time()
 
         try:
-            result = extract_from_pdf(pdf_path)
+            result = extract_from_pdf(pdf_path, seed_registry=seed_registry)
             report = build_report(result.meeting_name, result.source_pdf, result.elements)
             data = report.to_output_dict()
             with open(json_path, "w", encoding="utf-8") as f:
@@ -121,7 +133,13 @@ def main():
     output_dir = os.path.join(os.path.dirname(__file__), "output")
 
     if os.path.isfile(target) and target.endswith(".pdf"):
-        process_single(target, output_dir)
+        # For single file: load existing registry or build from parent dir
+        pdf_dir = os.path.dirname(target)
+        registry = load_registry(_DEFAULT_REGISTRY_PATH)
+        if not registry:
+            print("No seed registry found. Building from PDF directory...")
+            registry = build_seed_registry(pdf_dir, _DEFAULT_REGISTRY_PATH)
+        process_single(target, output_dir, seed_registry=registry)
     elif os.path.isdir(target):
         process_directory(target, output_dir)
     else:
