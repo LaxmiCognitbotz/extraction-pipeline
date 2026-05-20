@@ -62,7 +62,11 @@ class SeedMeetingGroup(BaseModel):
             "potential near Satara (up to 4500 MW): Part A'. "
             "Do NOT include: Sr.No., BPC names, Gazette info, Recommended/Approved text, dates. "
             "Do include the full multi-line scheme names joined into one string. "
-            "If a cell spans two rows (Part A and Part B), return them as SEPARATE entries."
+            "If a cell spans two rows (Part A and Part B), return them as SEPARATE entries. "
+            "CRITICAL ANTI-HALLUCINATION RULE: DO NOT extract individual sub-scope items! "
+            "Items like '1x500 MVA ICT', 'Establishment of 400/220kV pooling station', 'LILO of 765kV line', "
+            "or 'Ramgarh-II PS - Fatehgarh-II PS 400 kV D/c Line' are SCOPE ITEMS, not overarching schemes. "
+            "IGNORE THEM ENTIRELY."
         )
     )
 
@@ -117,16 +121,10 @@ THESE SECTIONS CAN APPEAR IN TWO FORMATS:
 
 FORMAT 1 — TABLE (most common in newer PDFs):
   Heading: "2 Status of the transmission schemes noted/approved/recommended to MoP in the 38th & 39th meeting of NCT"
-  Sub-heading: "2.1 Status of new transmission schemes approved/recommended:"
-  Table columns: Sr.No. | Name of the Transmission Scheme | Noted/Recommended/Approved | Mode | BPC | Gazette notification
-  The meeting group may appear as a row inside the table (e.g. "22nd NCT Meeting" as a separator row).
-
-FORMAT 2 — PARAGRAPH (common in older PDFs, no separate table):
-  Text like:
-    "The NCT in its 22nd meeting held on ... approved the following scheme: <Scheme Name>"
-    "Status of new transmission schemes approved/recommended in 22nd NCT meeting:"
-    "Following schemes were noted/approved in the 21st meeting of NCT:"
-    "1. <scheme name>  2. <scheme name>  ..."
+Your task: extract the names of transmission schemes from the "Status of previously approved schemes" section.
+The context will contain either a standard CSV table OR raw paragraph text.
+  - If a table is present, the scheme name is usually in a column titled 'Name of the Transmission Scheme'.
+  - If no table is present, the PDF uses a PARAGRAPH format.
   In this format, scheme names appear as numbered/bulleted lists or inline text.
 
 Your output must be a list of SeedMeetingGroup objects, one per unique PREVIOUS meeting referenced.
@@ -145,10 +143,20 @@ RULES:
    - Include the FULL scheme name as written
    - A scheme name typically starts with 'Transmission', 'Augmentation', 'Eastern/Western/Northern Region',
      'ERES-', 'WRES-', 'NERES-', 'NERGS-', 'Network Expansion', 'System for', 'Scheme for', etc.
-   - CRITICAL: Do NOT extract sub-items (like i, ii, iii) if they are specific transmission lines, 
-     substations, or ICTs (e.g., "Establishment of...", "Ramgarh PS - Fatehgarh PS...", "1x500 MVA..."). 
-     These are SCOPE items of a larger scheme, NOT schemes themselves. IGNORE THEM.
-4. SCOPE COLUMN: Do NOT extract 'scope' or 'elements' — only the scheme NAME.
+   
+4. CRITICAL RULE FOR SCOPE ITEMS (MUST OBEY):
+   Do NOT, under ANY circumstances, extract individual scope elements as a scheme. 
+   A scheme is a broad project (e.g., "Transmission scheme for evacuation of power from Rajasthan").
+   A SCOPE ITEM is a specific piece of equipment or physical line.
+   DO NOT EXTRACT ANY ITEM THAT LOOKS LIKE THIS:
+   - "1x500 MVA, 400/220 kV ICT augmentation 3rd at..." (Transformer addition)
+   - "LILO of 765 kV Meerut- Bhiwani S/c line at Narela" (LILO of a specific line)
+   - "Establishment of 400/220kV, 4x500 MVA pooling station..." (Substation creation)
+   - "Ramgarh-II PS - Fatehgarh-II PS 400 kV D/c Line..." (Point-to-point transmission line)
+   - "Grant of 400kV & 220kV bays to RE generators..." (Bay allocations)
+   - "1x330 MVAr Switchable line reactor..." (Reactor)
+   These are SCOPE items of a larger scheme. IGNORE THEM ENTIRELY.
+
 5. IGNORE: attendees, meeting procedures, scope-of-works for NEW schemes in the CURRENT meeting.
 6. Do NOT hallucinate. Only extract what is explicitly written in the text.
 7. If content continues on next page, extract from both pages.
@@ -181,11 +189,21 @@ RULES:
    - The heading format: "4.1 Transmission scheme for evacuation of power..." — the scheme name
      is the text after the number: "Transmission scheme for evacuation of power..."
    - Join multi-line names into a single clean string
-   - CRITICAL: Do NOT extract sub-scope items! If an item is a specific transmission line (e.g., "Khetri - Narela 765 kV D/c"), 
-     a substation ("Establishment of..."), a reactor ("1x80 MVAr..."), or an ICT ("1x500 MVA..."), IT IS A SCOPE ITEM, NOT A SCHEME. IGNORE IT.
-3. Do NOT extract schemes from the 'Status of previous meetings' section.
-4. Do NOT hallucinate. Extract only what is explicitly written.
-5. NORMALISE the name: strip leading/trailing whitespace, join broken lines.
+
+3. CRITICAL RULE FOR SCOPE ITEMS (MUST OBEY):
+   Do NOT extract sub-scope items as if they were schemes! 
+   DO NOT EXTRACT ANY ITEM THAT LOOKS LIKE THIS:
+   - "1x500 MVA, 400/220 kV ICT augmentation 3rd at..." (Transformer addition)
+   - "LILO of 765 kV Meerut- Bhiwani S/c line at Narela" (LILO of a specific line)
+   - "Establishment of 400/220kV, 4x500 MVA pooling station..." (Substation creation)
+   - "Ramgarh-II PS - Fatehgarh-II PS 400 kV D/c Line..." (Point-to-point transmission line)
+   - "Grant of 400kV & 220kV bays to RE generators..." (Bay allocations)
+   - "1x330 MVAr Switchable line reactor..." (Reactor)
+   These are SCOPE items of a larger scheme. IGNORE THEM ENTIRELY.
+
+4. Do NOT extract schemes from the 'Status of previous meetings' section.
+5. Do NOT hallucinate. Extract only what is explicitly written.
+6. NORMALISE the name: strip leading/trailing whitespace, join broken lines.
 """
 
 
@@ -377,7 +395,7 @@ def _clean_scheme_name(raw: str) -> str:
     raw = re.sub(r"^T(Transmission)", r"\1", raw)
     # Collapse internal whitespace
     raw = re.sub(r"\s+", " ", raw).strip()
-    # Remove trailing continuation markers like just '–' or '—'
+    # Remove trailing continuation markers like just '-' or '-'
     raw = re.sub(r"[\u2013\u2014\-]+\s*$", "", raw).strip()
     return raw
 
@@ -997,6 +1015,40 @@ def merge_seeds_into_registry(
     return registry
 
 
+def _deduplicate_registry(registry: dict[str, list[str]]) -> dict[str, list[str]]:
+    """
+    Enforce that a scheme name only belongs to the OLDEST meeting it is associated with.
+    This resolves LLM/Camelot hallucinations where a scheme from a previous meeting 
+    is mistakenly assigned to a newer meeting.
+    """
+    scheme_to_oldest = {}
+    
+    # Pass 1: Find the oldest meeting for each scheme
+    for meeting, schemes in registry.items():
+        mn = _ordinal_to_int(meeting)
+        if not mn or mn == 999:
+            continue
+        for s in schemes:
+            key = re.sub(r'[^a-z0-9]', '', s.lower())
+            if not key:
+                continue
+            if key not in scheme_to_oldest or mn < scheme_to_oldest[key][0]:
+                scheme_to_oldest[key] = (mn, meeting, s)
+                
+    # Pass 2: Rebuild registry keeping schemes only in their oldest meeting
+    deduped: dict[str, list[str]] = {m: [] for m in registry.keys()}
+    for key, (mn, meeting, original_s) in scheme_to_oldest.items():
+        if original_s not in deduped[meeting]:
+            deduped[meeting].append(original_s)
+            
+    # Remove empty meetings and preserve non-numbered meeting labels
+    for meeting, schemes in registry.items():
+        if _ordinal_to_int(meeting) == 999:
+            deduped[meeting] = list(schemes)
+
+    return {k: v for k, v in deduped.items() if v}
+
+
 def build_seed_registry(
     pdf_dir: str,
     registry_path: Path = _DEFAULT_REGISTRY_PATH,
@@ -1055,6 +1107,11 @@ def build_seed_registry(
         # Rate-limit between LLM calls
         if use_llm and i < total:
             time.sleep(llm_rate_limit_sleep)
+
+    # ── Deduplicate the final registries ──
+    registry = _deduplicate_registry(registry)
+    for pdf_name in registry_by_pdf:
+        registry_by_pdf[pdf_name] = _deduplicate_registry(registry_by_pdf[pdf_name])
 
     save_registry(registry, registry_path)
     
