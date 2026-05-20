@@ -54,7 +54,9 @@ class SeedMeetingGroup(BaseModel):
             "The meeting this group of schemes was approved/recommended in. "
             "Format: '38th NCT Meeting', '39th NCT Meeting', etc. "
             "Extract the number from the section heading like "
-            "'Status of schemes...in the 38th meeting of NCT'."
+            "'Status of schemes...in the 38th meeting of NCT'. "
+            "CRITICAL: MUST end in 'NCT Meeting'. NEVER use implementation routes "
+            "(e.g., 'PFCCL TBCB route', 'RECTPCL TBCB route') as meeting labels!"
         )
     )
     scheme_names: List[str] = Field(
@@ -771,11 +773,21 @@ def _extract_seeds_via_llm(
         groups: list[SeedMeetingGroup] = result.output
         for grp in groups:
             label = grp.meeting_label.strip()
+            
+            # Post-processing: ignore garbage labels like "PFCCL TBCB route"
+            if "meeting" not in label.lower() or not re.search(r"\d", label):
+                continue
+                
             # Normalise label format
             m = re.search(r"(\d+)", label)
             if m:
                 n = int(m.group(1))
                 label = _int_to_ordinal_label(n)
+            
+            # Fallback if normalisation fails but it passed the filter
+            if "NCT Meeting" not in label:
+                label = f"{label} NCT Meeting"
+                
             if label not in seeds:
                 seeds[label] = []
             for name in grp.scheme_names:

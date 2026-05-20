@@ -12,6 +12,9 @@ Tentative SCOD
 Awarded To	
 Project Cost (Cr.)
 SPV Transfer Date
+original SCOD - what is the Tentative SCOD put as it is in this column
+Antipicated SCOD 
+Remarks -> Extarct as it is from the table
 
 ==========
 Each column logic -
@@ -51,7 +54,5 @@ Awarded To -> from Tender Issuing Authority i download the multiple pdf from tah
 
 Project Cost (Cr.) -> WHere the transmission schema and transmission scope was written in taht also mention the Project Cost (Cr.) as it is. you have to ext5rct thet aslo 
 
-Length -> Lenth is also written in table
-
-SPV Transfer Date -> 
+Length -> Lenth is also written in table 
 
