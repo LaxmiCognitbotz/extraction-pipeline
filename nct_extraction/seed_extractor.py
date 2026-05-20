@@ -145,6 +145,9 @@ RULES:
    - Include the FULL scheme name as written
    - A scheme name typically starts with 'Transmission', 'Augmentation', 'Eastern/Western/Northern Region',
      'ERES-', 'WRES-', 'NERES-', 'NERGS-', 'Network Expansion', 'System for', 'Scheme for', etc.
+   - CRITICAL: Do NOT extract sub-items (like i, ii, iii) if they are specific transmission lines, 
+     substations, or ICTs (e.g., "Establishment of...", "Ramgarh PS - Fatehgarh PS...", "1x500 MVA..."). 
+     These are SCOPE items of a larger scheme, NOT schemes themselves. IGNORE THEM.
 4. SCOPE COLUMN: Do NOT extract 'scope' or 'elements' — only the scheme NAME.
 5. IGNORE: attendees, meeting procedures, scope-of-works for NEW schemes in the CURRENT meeting.
 6. Do NOT hallucinate. Only extract what is explicitly written in the text.
@@ -178,7 +181,8 @@ RULES:
    - The heading format: "4.1 Transmission scheme for evacuation of power..." — the scheme name
      is the text after the number: "Transmission scheme for evacuation of power..."
    - Join multi-line names into a single clean string
-   - Do NOT include sub-scope items, line descriptions, capacity values, or cost figures as separate entries
+   - CRITICAL: Do NOT extract sub-scope items! If an item is a specific transmission line (e.g., "Khetri - Narela 765 kV D/c"), 
+     a substation ("Establishment of..."), a reactor ("1x80 MVAr..."), or an ICT ("1x500 MVA..."), IT IS A SCOPE ITEM, NOT A SCHEME. IGNORE IT.
 3. Do NOT extract schemes from the 'Status of previous meetings' section.
 4. Do NOT hallucinate. Extract only what is explicitly written.
 5. NORMALISE the name: strip leading/trailing whitespace, join broken lines.
@@ -770,7 +774,7 @@ def _find_new_scheme_pages(pdf_path: str) -> list[int]:
     """
     results: set[int] = set()
     _NEW_SCHEME_RE = re.compile(
-        r"^(?:\d+\.?\s*)?New\s+Transmission\s+Scheme", re.IGNORECASE
+        r"^\s*(?:\d+\.?\s*)?New\s+Transmission\s+Scheme", re.IGNORECASE | re.MULTILINE
     )
 
     with pdfplumber.open(pdf_path) as pdf:
