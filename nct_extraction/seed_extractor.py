@@ -18,11 +18,15 @@ from __future__ import annotations
 import json
 import re
 import sys
+if sys.stdout is not None and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import time
 from pathlib import Path
 from typing import List, Optional
 
 import pdfplumber
+import warnings
+warnings.filterwarnings("ignore", message="No tables found in table area")
 from pydantic import BaseModel, Field
 
 # Suppress camelot temp-file PermissionError on Windows at exit
@@ -1113,7 +1117,17 @@ def build_seed_registry(
     for pdf_name in registry_by_pdf:
         registry_by_pdf[pdf_name] = _deduplicate_registry(registry_by_pdf[pdf_name])
 
-    save_registry(registry, registry_path)
+    # Sort the registry by meeting number descending
+    def extract_meeting_num(meeting_str: str) -> int:
+        m = re.search(r'^(\d+)', meeting_str)
+        return int(m.group(1)) if m else 0
+
+    sorted_registry = {
+        k: registry[k]
+        for k in sorted(registry.keys(), key=extract_meeting_num, reverse=True)
+    }
+
+    save_registry(sorted_registry, registry_path)
     
     # Save the by-pdf registry for human verification
     by_pdf_path = registry_path.parent / "scheme_seed_registry_by_pdf.json"
@@ -1161,15 +1175,22 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python -m nct_extraction.seed_extractor <pdf_dir>   # Build registry")
-        print("  python -m nct_extraction.seed_extractor <pdf_file>  # Scan one PDF")
+        print("  python -m nct_extraction.seed_extractor <pdf_dir> [--no-llm]  # Build registry")
+        print("  python -m nct_extraction.seed_extractor <pdf_file> [--no-llm] # Scan one PDF")
         sys.exit(1)
 
-    target = Path(sys.argv[1])
+    target_str = sys.argv[1]
+    use_llm = "--no-llm" not in sys.argv
+    if "--no-llm" in sys.argv:
+        sys.argv.remove("--no-llm")
+        target_str = sys.argv[1] # re-read in case order was weird
+        
+    target = Path(target_str)
+
     if target.is_dir():
-        build_seed_registry(str(target))
+        build_seed_registry(str(target), use_llm=use_llm)
     elif target.is_file() and target.suffix.lower() == ".pdf":
-        seeds = extract_seeds_from_pdf(str(target))
+        seeds = extract_seeds_from_pdf(str(target), use_llm=use_llm)
         print(json.dumps(seeds, indent=2, ensure_ascii=False))
     else:
         print(f"Error: '{target}' is not a valid PDF or directory")
