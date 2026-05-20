@@ -1017,6 +1017,7 @@ def build_seed_registry(
         llm_rate_limit_sleep: Seconds to sleep between PDFs when LLM is used.
     """
     registry = load_registry(registry_path)
+    registry_by_pdf: dict[str, dict[str, list[str]]] = {}
 
     pdf_files = sorted(
         [f for f in Path(pdf_dir).iterdir() if f.suffix.lower() == ".pdf"],
@@ -1039,6 +1040,13 @@ def build_seed_registry(
                     for name in names:
                         print(f"[seed]     [{meeting}] {name[:90]}")
                 registry = merge_seeds_into_registry(seeds, registry)
+                
+                # Keep a track of what came from which PDF for user verification
+                pdf_name_str = pdf_path.name
+                if pdf_name_str not in registry_by_pdf:
+                    registry_by_pdf[pdf_name_str] = {}
+                registry_by_pdf[pdf_name_str] = merge_seeds_into_registry(seeds, registry_by_pdf[pdf_name_str])
+                
             else:
                 print(f"[seed]   — No status sections found")
         except Exception as e:
@@ -1049,7 +1057,14 @@ def build_seed_registry(
             time.sleep(llm_rate_limit_sleep)
 
     save_registry(registry, registry_path)
+    
+    # Save the by-pdf registry for human verification
+    by_pdf_path = registry_path.parent / "scheme_seed_registry_by_pdf.json"
+    with open(by_pdf_path, "w", encoding="utf-8") as f:
+        json.dump(registry_by_pdf, f, indent=2, ensure_ascii=False)
+        
     print(f"\n[seed] Registry saved: {registry_path}")
+    print(f"[seed] By-PDF Audit file saved: {by_pdf_path}")
     print(f"[seed] Meetings covered: {sorted(registry.keys())}")
     total_seeds = sum(len(v) for v in registry.values())
     print(f"[seed] Total scheme name seeds: {total_seeds}")
