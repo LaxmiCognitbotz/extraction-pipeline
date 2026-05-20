@@ -949,8 +949,19 @@ def extract_seeds_from_pdf(
                 print(f"[seed]   Found {len(current_names)} new schemes for {current_label}")
 
     # ── Merge all passes ──
-    # LLM is preferred (more accurate per-meeting mapping), supplemented by camelot + heuristic
-    seeds = _merge_seed_dicts(llm_seeds, camelot_seeds, heuristic_seeds, current_meeting_seeds)
+    # LLM is preferred (more accurate per-meeting mapping).
+    # If the LLM successfully extracted schemes, we ONLY use camelot/heuristic 
+    # for meetings that the LLM completely missed, to avoid polluting accurate mapping.
+    if use_llm and llm_seeds:
+        for label, names in camelot_seeds.items():
+            if label not in llm_seeds:
+                llm_seeds[label] = names
+        for label, names in heuristic_seeds.items():
+            if label not in llm_seeds:
+                llm_seeds[label] = names
+        seeds = _merge_seed_dicts(llm_seeds, current_meeting_seeds)
+    else:
+        seeds = _merge_seed_dicts(llm_seeds, camelot_seeds, heuristic_seeds, current_meeting_seeds)
 
     return seeds
 
