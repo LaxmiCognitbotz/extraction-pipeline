@@ -318,56 +318,69 @@ def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str
         
     return final_rows
 
+def _find_pdf_for_meeting(meeting_label: str, pdf_dir: Path) -> Optional[Path]:
+    """Given a label like '39th NCT Meeting', find the corresponding PDF like '02_39th_NCT_MoM.pdf'."""
+    m = re.search(r'(\d+)', meeting_label)
+    if not m:
+        return None
+    meeting_num = m.group(1)
+    
+    for pdf_path in pdf_dir.glob("*.pdf"):
+        if f"{meeting_num}th" in pdf_path.name.lower() or f"_{meeting_num}_" in pdf_path.name.lower():
+            return pdf_path
+            
+    return None
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     
-    # Load the by-PDF registry so we know which PDF contains which schemes
-    registry_path = Path("scheme_seed_registry_by_pdf.json")
+    # We load the flattened scheme_seed_registry.json so we map each scheme to its TRUE meeting PDF
+    registry_path = Path("scheme_seed_registry.json")
     if not registry_path.exists():
-        registry_path = Path("nct_extraction/output/scheme_seed_registry_by_pdf.json")
+        registry_path = Path("nct_extraction/output/scheme_seed_registry.json")
         
     if not registry_path.exists():
         print(f"Registry file not found at {registry_path.absolute()}")
         return
         
     with open(registry_path, "r", encoding="utf-8") as f:
-        registry_by_pdf = json.load(f)
+        registry = json.load(f)
         
     pdf_dir = Path("uploads/CEA-NCT-Minutes")
-    
     all_rows = []
     
-    # Iterate through all PDFs and their corresponding scheme mappings
-    for pdf_filename, meetings_dict in registry_by_pdf.items():
-        pdf_path = pdf_dir / pdf_filename
-        
-        if not pdf_path.exists():
-            print(f"Warning: PDF {pdf_path} not found, skipping...")
+    # Iterate through all meetings in the registry
+    for meeting_label, schemes in registry.items():
+        if not schemes:
             continue
             
         print(f"\n{'='*60}")
-        print(f"📄 Processing PDF: {pdf_filename}")
+        print(f">>> Meeting: {meeting_label} ({len(schemes)} schemes)")
         print(f"{'='*60}")
         
-        for meeting_label, schemes in meetings_dict.items():
-            if not schemes:
-                continue
+        # Find the correct PDF for this meeting
+        correct_pdf_path = _find_pdf_for_meeting(meeting_label, pdf_dir)
+        if not correct_pdf_path or not correct_pdf_path.exists():
+            print(f"Warning: Could not find PDF for {meeting_label} in {pdf_dir}. Skipping...")
+            continue
+            
+        print(f"📄 Found target PDF: {correct_pdf_path.name}")
+        
+        for scheme in schemes:
+            print(f"\n--- Extracting Scope for: {scheme[:80]}... ---")
+            try:
+                # We extract the granular scope from the PDF where it was actually approved!
+                rows = extract_scope_for_scheme(str(correct_pdf_path), scheme, meeting_label)
+                if rows:
+                    all_rows.extend(rows)
+                    print(f"    ✓ Extracted {len(rows)} scope elements.")
+                else:
+                    print(f"    - No scope elements found.")
+            except Exception as e:
+                print(f"    ! Error extracting scheme: {e}")
                 
-            print(f"\n>>> Meeting: {meeting_label} ({len(schemes)} schemes)")
-            for scheme in schemes:
-                print(f"\n--- Extracting Scope for: {scheme[:80]}... ---")
-                try:
-                    rows = extract_scope_for_scheme(str(pdf_path), scheme, meeting_label)
-                    if rows:
-                        all_rows.extend(rows)
-                        print(f"    ✓ Extracted {len(rows)} scope elements.")
-                    else:
-                        print(f"    - No scope elements found.")
-                except Exception as e:
-                    print(f"    ! Error extracting scheme: {e}")
-                    
-                # Rate limit to avoid API throttling
-                time.sleep(2)
+            # Rate limit to avoid API throttling
+            time.sleep(2)
                 
     out_file = Path("output/final_extracted_scopes.json")
     out_file.parent.mkdir(exist_ok=True)
