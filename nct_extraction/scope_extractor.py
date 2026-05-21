@@ -300,6 +300,9 @@ def main():
     # Load the by-PDF registry so we know which PDF contains which schemes
     registry_path = Path("scheme_seed_registry_by_pdf.json")
     if not registry_path.exists():
+        registry_path = Path("nct_extraction/output/scheme_seed_registry_by_pdf.json")
+        
+    if not registry_path.exists():
         print(f"Registry file not found at {registry_path.absolute()}")
         return
         
