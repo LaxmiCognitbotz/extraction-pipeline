@@ -102,7 +102,7 @@ def _get_seed_agent():
         _seed_agent = Agent(
             model=model,
             output_type=list[SeedMeetingGroup],
-            system_prompt=_SEED_SYSTEM_PROMPT,
+            system_prompt=_UNIFIED_SEED_SYSTEM_PROMPT,
             retries=2,
             model_settings=ModelSettings(
                 temperature=0.0,
@@ -117,55 +117,33 @@ def _get_seed_agent():
     return _seed_agent
 
 
-_SEED_SYSTEM_PROMPT = """\
-You are a precise data extraction agent for CEA NCT (National Committee on Transmission) meeting minutes.
+_UNIFIED_SEED_SYSTEM_PROMPT = """\
+You are an advanced semantic data extraction agent for CEA NCT (National Committee on Transmission) meeting minutes.
 
-Your ONLY task: extract transmission scheme names from sections describing the status of schemes
-approved or recommended in PREVIOUS NCT meetings (not the current meeting being documented).
+Your objective is to extract transmission scheme names from the text and accurately attribute each scheme to its TRUE owning NCT meeting.
 
-THESE SECTIONS CAN APPEAR IN TWO FORMATS:
+CRITICAL OWNERSHIP RULES:
+1. **Historical References**: If a scheme appears under a section like "Status of the transmission schemes noted/approved/recommended to MoP in the 37th meeting of NCT" or "Follow-up from earlier NCT meetings", you MUST attribute that scheme to the REFERENCED meeting (e.g., "37th NCT Meeting"), NOT the current meeting.
+2. **Current Meeting Schemes**: If a scheme appears under "New Transmission Schemes" or is being proposed/approved for the FIRST TIME in this document, you MUST attribute it to the CURRENT meeting.
 
-FORMAT 1 — TABLE (most common in newer PDFs):
-  Heading: "2 Status of the transmission schemes noted/approved/recommended to MoP in the 38th & 39th meeting of NCT"
-Your task: extract the names of transmission schemes from the "Status of previously approved schemes" section.
-The context will contain either a standard CSV table OR raw paragraph text.
-  - If a table is present, the scheme name is usually in a column titled 'Name of the Transmission Scheme'.
-  - If no table is present, the PDF uses a PARAGRAPH format.
-  In this format, scheme names appear as numbered/bulleted lists or inline text.
+Your output must be a list of `SeedMeetingGroup` objects, where each group represents a specific meeting and contains all schemes attributed to it.
 
-Your output must be a list of SeedMeetingGroup objects, one per unique PREVIOUS meeting referenced.
+SCHEME EXTRACTION RULES:
+- Extract the full, clean scheme name. Example: 'Transmission Network Expansion Scheme in Western Region to cater to pumped storage potential near Satara (up to 4500 MW): Part A'.
+- Do NOT extract BPC names (RECPDCL, PFCCL etc.), gazette info, status words, dates, or prices.
+- Join multi-line names into a single clean string. If Part A and Part B are distinct, keep them as SEPARATE entries.
+- If the content continues on the next page, extract from both seamlessly based on context.
 
-RULES:
-1. MEETING LABEL: Extract the meeting number from context.
-   - "38th meeting of NCT" → "38th NCT Meeting"
-   - "22nd NCT Meeting" (as table group row) → "22nd NCT Meeting"
-2. SCHEME NAMES — from TABLE format:
-   - Extract from the "Name of the Transmission Scheme" column
-   - Join multi-line cells into one string (but keep Part A and Part B as SEPARATE entries)
-   - Do NOT include: BPC names (RECPDCL, PFCCL etc.), gazette info, status words, dates
-   - Clean OCR artifacts: 'TTransmission' → 'Transmission'
-3. SCHEME NAMES — from PARAGRAPH format:
-   - Extract names from numbered lists or inline text following the approval/recommendation sentence
-   - Include the FULL scheme name as written
-   - A scheme name typically starts with 'Transmission', 'Augmentation', 'Eastern/Western/Northern Region',
-     'ERES-', 'WRES-', 'NERES-', 'NERGS-', 'Network Expansion', 'System for', 'Scheme for', etc.
-   
-4. CRITICAL RULE FOR SCOPE ITEMS (MUST OBEY):
-   Do NOT, under ANY circumstances, extract individual scope elements as a scheme. 
-   A scheme is a broad project (e.g., "Transmission scheme for evacuation of power from Rajasthan").
-   A SCOPE ITEM is a specific piece of equipment or physical line.
-   DO NOT EXTRACT ANY ITEM THAT LOOKS LIKE THIS:
-   - "1x500 MVA, 400/220 kV ICT augmentation 3rd at..." (Transformer addition)
-   - "LILO of 765 kV Meerut- Bhiwani S/c line at Narela" (LILO of a specific line)
-   - "Establishment of 400/220kV, 4x500 MVA pooling station..." (Substation creation)
-   - "Ramgarh-II PS - Fatehgarh-II PS 400 kV D/c Line..." (Point-to-point transmission line)
-   - "Grant of 400kV & 220kV bays to RE generators..." (Bay allocations)
-   - "1x330 MVAr Switchable line reactor..." (Reactor)
-   These are SCOPE items of a larger scheme. IGNORE THEM ENTIRELY.
-
-5. IGNORE: attendees, meeting procedures, scope-of-works for NEW schemes in the CURRENT meeting.
-6. Do NOT hallucinate. Only extract what is explicitly written in the text.
-7. If content continues on next page, extract from both pages.
+CRITICAL ANTI-HALLUCINATION RULE:
+Do NOT extract individual sub-scope items! A scheme is a broad project. A SCOPE ITEM is a piece of equipment.
+DO NOT EXTRACT ANY ITEM THAT LOOKS LIKE:
+- "1x500 MVA, 400/220 kV ICT augmentation 3rd at..." (Transformer addition)
+- "LILO of 765 kV Meerut- Bhiwani S/c line at Narela" (LILO of a specific line)
+- "Establishment of 400/220kV, 4x500 MVA pooling station..." (Substation creation)
+- "Ramgarh-II PS - Fatehgarh-II PS 400 kV D/c Line..." (Point-to-point transmission line)
+- "Grant of 400kV & 220kV bays to RE generators..." (Bay allocations)
+- "1x330 MVAr Switchable line reactor..." (Reactor)
+These are sub-components. IGNORE THEM ENTIRELY.
 """
 
 
@@ -897,105 +875,105 @@ def extract_seeds_from_pdf(
     use_llm: bool = True,
 ) -> dict[str, list[str]]:
     """
-    Main function: scan one NCT PDF for status-review sections and return
+    Main function: scan one NCT PDF for status-review and new scheme sections, and return
     a dict mapping meeting_label -> list of scheme names.
 
-    Three-pass approach (best accuracy through redundancy):
-      Pass 1 — Camelot: structured table extraction, finds scheme name column
-      Pass 2 — LLM:     understands context, recovers truncated/garbled names,
-                         correctly maps names to meeting numbers per sub-section
-      Pass 3 — Heuristic: regex/line-scan fallback if both above are empty
-
-    Results from all passes are union-merged (no duplicates).
+    Uses a single unified semantic LLM pass to correctly attribute schemes to their ACTUAL meeting
+    ownership (avoiding naive hallucinated assignments to the current meeting).
     """
     seeds: dict[str, list[str]] = {}
 
-    # ── Stage 0: Identify status pages ──
-    status_pages = _find_status_pages(pdf_path)
+    if not use_llm:
+        print("[seed] LLM disabled. Skipping extraction.")
+        return seeds
 
-    # If no table-format status sections found, try paragraph-format fallback
+    # ── Identify relevant pages ──
+    status_pages = _find_status_pages(pdf_path)
     using_paragraph_mode = False
     if not status_pages:
         status_pages = _find_status_pages_paragraph(pdf_path)
         using_paragraph_mode = bool(status_pages)
-        if using_paragraph_mode:
-            print(f"[seed]   Paragraph-mode detection: {len(status_pages)} pages")
 
-    if not status_pages:
+    # Collect status pages (+1 for continuation)
+    all_status_page_nums = []
+    for page_num, _ in status_pages:
+        all_status_page_nums.extend([page_num, page_num + 1])
+
+    new_scheme_pages = _find_new_scheme_pages(pdf_path)
+
+    unique_pages = sorted(set(all_status_page_nums + new_scheme_pages))
+
+    if not unique_pages:
         return seeds
 
-    # Collect all relevant pages (include +1 for table continuation)
-    all_status_page_nums: list[int] = []
-    all_meeting_nums: list[int] = []
-
-    for page_num, meeting_nums in status_pages:
-        all_status_page_nums.append(page_num)
-        all_status_page_nums.append(page_num + 1)  # span to next page
-        all_meeting_nums.extend(meeting_nums)
-
-    unique_pages = sorted(set(all_status_page_nums))
-    unique_meeting_nums = list(set(all_meeting_nums))
-
-    # Infer current meeting number from filename for LLM context
     current_meeting_num = _pdf_meeting_number(str(Path(pdf_path).name))
+    agent = _get_seed_agent()
+    if agent is None:
+        return seeds
 
-    # ── Pass 1: Camelot ──
-    camelot_names = _extract_scheme_names_via_camelot(pdf_path, unique_pages)
-    camelot_seeds: dict[str, list[str]] = {}
-    if camelot_names:
-        for mn in unique_meeting_nums:
-            label = _int_to_ordinal_label(mn)
-            camelot_seeds[label] = list(camelot_names)  # all names to all meetings (coarse)
+    context = _build_seed_llm_context(pdf_path, unique_pages, paragraph_mode=using_paragraph_mode)
+    if not context.strip():
+        return seeds
 
-    # ── Pass 2: LLM (more accurate meeting-level mapping) ──
-    llm_seeds: dict[str, list[str]] = {}
-    if use_llm:
-        llm_seeds = _extract_seeds_via_llm(
-            pdf_path, unique_pages, current_meeting_num,
-            paragraph_mode=using_paragraph_mode,
+    header = "NCT MEETING MINUTES — SCHEME OWNERSHIP EXTRACTION\n"
+    if current_meeting_num:
+        header += (
+            f"This is the {_int_to_ordinal_label(current_meeting_num)} PDF.\n"
+            f"When assigning 'meeting_label', differentiate carefully between schemes from PREVIOUS meetings "
+            f"and NEW schemes proposed for the first time in the {_int_to_ordinal_label(current_meeting_num)}.\n"
         )
+    if using_paragraph_mode:
+        header += (
+            "\n[IMPORTANT] This PDF uses PARAGRAPH FORMAT — scheme names appear in inline text or "
+            "numbered lists, not in a standard status table.\n"
+        )
+    header += "\nEXTRACT schemes and their owning meetings from the content below:\n"
 
-    # ── Pass 3: Heuristic fallback (if both above returned nothing) ──
-    heuristic_seeds: dict[str, list[str]] = {}
-    if not camelot_seeds and not llm_seeds:
-        sections = _extract_status_section_text(pdf_path)
-        for meeting_nums, block_text in sections:
-            names = _extract_scheme_names_heuristic(block_text)
-            for mn in meeting_nums:
-                label = _int_to_ordinal_label(mn)
-                if label not in heuristic_seeds:
-                    heuristic_seeds[label] = []
-                for name in names:
-                    if name not in heuristic_seeds[label]:
-                        heuristic_seeds[label].append(name)
+    prompt = header + "\n" + context
 
-    # ── Pass 4: Extract current meeting's NEW schemes ──
-    current_meeting_seeds: dict[str, list[str]] = {}
-    if use_llm and current_meeting_num:
-        new_scheme_pages = _find_new_scheme_pages(pdf_path)
-        if new_scheme_pages:
-            current_names = _extract_current_meeting_seeds_via_llm(
-                pdf_path, new_scheme_pages, current_meeting_num
-            )
-            if current_names:
-                current_label = _int_to_ordinal_label(current_meeting_num)
-                current_meeting_seeds[current_label] = current_names
-                print(f"[seed]   Found {len(current_names)} new schemes for {current_label}")
-
-    # ── Merge all passes ──
-    # LLM is preferred (more accurate per-meeting mapping).
-    # If the LLM successfully extracted schemes, we ONLY use camelot/heuristic 
-    # for meetings that the LLM completely missed, to avoid polluting accurate mapping.
-    if use_llm and llm_seeds:
-        for label, names in camelot_seeds.items():
-            if label not in llm_seeds:
-                llm_seeds[label] = names
-        for label, names in heuristic_seeds.items():
-            if label not in llm_seeds:
-                llm_seeds[label] = names
-        seeds = _merge_seed_dicts(llm_seeds, current_meeting_seeds)
-    else:
-        seeds = _merge_seed_dicts(llm_seeds, camelot_seeds, heuristic_seeds, current_meeting_seeds)
+    try:
+        # We temporarily override the system prompt to use the UNIFIED prompt
+        from pydantic_ai import Agent
+        from pydantic_ai.settings import ModelSettings
+        from app.llm import get_model, ensure_api_key
+        
+        ensure_api_key()
+        
+        temp_agent = Agent(
+            model=get_model(),
+            output_type=list[SeedMeetingGroup],
+            system_prompt=_UNIFIED_SEED_SYSTEM_PROMPT,
+            retries=2,
+            model_settings=ModelSettings(temperature=0.0, max_tokens=4096, timeout=120),
+        )
+        
+        result = temp_agent.run_sync(prompt)
+        groups: list[SeedMeetingGroup] = result.output
+        for grp in groups:
+            label = grp.meeting_label.strip()
+            
+            # Post-processing: ignore garbage labels like "PFCCL TBCB route"
+            if "meeting" not in label.lower() or not re.search(r"\d", label):
+                continue
+                
+            # Normalise label format
+            m = re.search(r"(\d+)", label)
+            if m:
+                n = int(m.group(1))
+                label = _int_to_ordinal_label(n)
+            
+            # Fallback if normalisation fails but it passed the filter
+            if "NCT Meeting" not in label:
+                label = f"{label} NCT Meeting"
+                
+            if label not in seeds:
+                seeds[label] = []
+            for name in grp.scheme_names:
+                name = _clean_scheme_name(name)
+                if _looks_like_scheme_name(name) and name not in seeds[label]:
+                    seeds[label].append(name)
+    except Exception as e:
+        print(f"[seed-llm] Unified extraction failed: {e}")
 
     return seeds
 
