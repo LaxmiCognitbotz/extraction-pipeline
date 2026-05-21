@@ -171,10 +171,16 @@ def _fetch_external_tender_data(scheme_name: str, bpc: str) -> dict:
         print(f"[-] Unrecognized BPC '{bpc}'. Skipping scraping.")
         return result
 
-    # 2. Generate Queries
-    queries = suggest_queries(scheme_name, scope="")
-    if not queries:
-        return result
+    # 2. Generate Queries: Search full name first, then fallback to shortened (max 5 retries)
+    generated = suggest_queries(scheme_name, scope="") or []
+    raw_queries = [scheme_name] + generated
+    
+    queries = []
+    for q in raw_queries:
+        if q not in queries:
+            queries.append(q)
+            
+    queries = queries[:5]
 
     out_dir = Path("uploads/TEMP_TENDERS")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -236,14 +242,14 @@ def _fetch_external_tender_data(scheme_name: str, bpc: str) -> dict:
 
     return result
 
-def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str) -> List[dict]:
-    """Extract granular scope details for a single scheme and format to the final JSON spec."""
+def extract_nct_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str) -> List[dict]:
+    """Pass 1: Extract granular scope details directly from the NCT PDF."""
     pages = _find_scheme_pages(pdf_path, scheme_name)
     if not pages:
-        print(f"Could not find pages for scheme: {scheme_name[:50]}...")
+        print(f"    [!] Could not find pages for scheme: {scheme_name[:50]}...")
         return []
         
-    print(f"Found scheme on pages: {pages}")
+    print(f"    [>] Found scheme on pages: {pages}")
     context = _extract_text_and_tables(pdf_path, pages)
     
     agent = _get_scope_agent()
@@ -257,21 +263,13 @@ def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str
         result = agent.run_sync(prompt)
         details: SchemeDetails = result.output
     except Exception as e:
-        print(f"LLM Extraction failed: {e}")
+        print(f"    [!] LLM Extraction failed: {e}")
         return []
         
-    # Fetch Remarks from TBCB UC Report
-    tbcb_remarks = extract_remarks_from_tbcb_report(scheme_name)
+    initial_rows = []
     
-    # Fetch Tender Data using scrapers
-    tender_data = _fetch_external_tender_data(scheme_name, details.tender_issuing_authority or "")
-        
-    final_rows = []
-    
-    # If the LLM found granular scope items, iterate through them
     if details.scope_elements:
         for scope in details.scope_elements:
-            final_remarks = scope.remarks if scope.remarks else (tbcb_remarks or "")
             row = {
                 "Transmission Scheme": details.transmission_scheme,
                 "Transmission Scope": scope.transmission_scope,
@@ -280,43 +278,42 @@ def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str
                 "Approval of Elements in which NCT": meeting_label,
                 "Source": "NCT",
                 "Tender Issuing Authority": details.tender_issuing_authority or "",
-                "Date of tender issuance": tender_data["Date of tender issuance"],
-                "Date of Bid Submission": tender_data["Date of Bid Submission"],
+                "Date of tender issuance": "",
+                "Date of Bid Submission": "",
                 "Execution Timeline": details.execution_timeline or "",
-                "Tentative SCOD": tender_data["Tentative SCOD"],
-                "Awarded To": tender_data["Awarded To"],
+                "Tentative SCOD": "",
+                "Awarded To": "",
                 "Project Cost (Cr.)": details.project_cost_cr or "",
                 "SPV Transfer Date": "",
                 "original SCOD": "",
                 "Antipicated SCOD": "",
-                "Remarks": final_remarks
+                "Remarks": scope.remarks or ""
             }
-            final_rows.append(row)
+            initial_rows.append(row)
     else:
-        # If no granular scope items were found (e.g. status tables often omit scope details),
-        # we STILL want to output a row for the scheme itself with the scheme-level details!
+        # Fallback if no granular scope items found
         row = {
             "Transmission Scheme": details.transmission_scheme or scheme_name,
-            "Transmission Scope": "",  # Empty since we couldn't find granular breakdown
+            "Transmission Scope": "",  
             "MVA": "",
             "Status": "Approved",
             "Approval of Elements in which NCT": meeting_label,
             "Source": "NCT",
             "Tender Issuing Authority": details.tender_issuing_authority or "",
-            "Date of tender issuance": tender_data["Date of tender issuance"],
-            "Date of Bid Submission": tender_data["Date of Bid Submission"],
+            "Date of tender issuance": "",
+            "Date of Bid Submission": "",
             "Execution Timeline": details.execution_timeline or "",
-            "Tentative SCOD": tender_data["Tentative SCOD"],
-            "Awarded To": tender_data["Awarded To"],
+            "Tentative SCOD": "",
+            "Awarded To": "",
             "Project Cost (Cr.)": details.project_cost_cr or "",
             "SPV Transfer Date": "",
             "original SCOD": "",
             "Antipicated SCOD": "",
-            "Remarks": tbcb_remarks or ""
+            "Remarks": ""
         }
-        final_rows.append(row)
+        initial_rows.append(row)
         
-    return final_rows
+    return initial_rows
 
 def _find_pdf_for_meeting(meeting_label: str, pdf_dir: Path) -> Optional[Path]:
     """Given a label like '39th NCT Meeting', find the corresponding PDF like '02_39th_NCT_MoM.pdf'."""
@@ -334,7 +331,6 @@ def _find_pdf_for_meeting(meeting_label: str, pdf_dir: Path) -> Optional[Path]:
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     
-    # We load the flattened scheme_seed_registry.json so we map each scheme to its TRUE meeting PDF
     registry_path = Path("scheme_seed_registry.json")
     if not registry_path.exists():
         registry_path = Path("nct_extraction/output/scheme_seed_registry.json")
@@ -347,48 +343,80 @@ def main():
         registry = json.load(f)
         
     pdf_dir = Path("uploads/CEA-NCT-Minutes")
-    all_rows = []
+    intermediate_rows = []
     
-    # Iterate through all meetings in the registry
+    print("\n" + "="*80)
+    print("🚀 PHASE 1: PURE NCT DATA EXTRACTION (PAGE BY PAGE)")
+    print("="*80)
+    
+    # ── PHASE 1: Extract all NCT Data First ──
     for meeting_label, schemes in registry.items():
-        if not schemes:
-            continue
+        if not schemes: continue
             
-        print(f"\n{'='*60}")
-        print(f">>> Meeting: {meeting_label} ({len(schemes)} schemes)")
-        print(f"{'='*60}")
-        
-        # Find the correct PDF for this meeting
         correct_pdf_path = _find_pdf_for_meeting(meeting_label, pdf_dir)
         if not correct_pdf_path or not correct_pdf_path.exists():
-            print(f"Warning: Could not find PDF for {meeting_label} in {pdf_dir}. Skipping...")
             continue
             
-        print(f"📄 Found target PDF: {correct_pdf_path.name}")
+        print(f"\n📄 Scanning PDF: {correct_pdf_path.name} for {meeting_label}")
         
         for scheme in schemes:
-            print(f"\n--- Extracting Scope for: {scheme[:80]}... ---")
+            print(f"\n--- Extracting NCT Scope for: {scheme[:80]}... ---")
             try:
-                # We extract the granular scope from the PDF where it was actually approved!
-                rows = extract_scope_for_scheme(str(correct_pdf_path), scheme, meeting_label)
+                rows = extract_nct_scope_for_scheme(str(correct_pdf_path), scheme, meeting_label)
                 if rows:
-                    all_rows.extend(rows)
+                    intermediate_rows.extend(rows)
                     print(f"    ✓ Extracted {len(rows)} scope elements.")
                 else:
                     print(f"    - No scope elements found.")
             except Exception as e:
                 print(f"    ! Error extracting scheme: {e}")
+            time.sleep(1)
                 
-            # Rate limit to avoid API throttling
-            time.sleep(2)
-                
-    out_file = Path("output/final_extracted_scopes.json")
-    out_file.parent.mkdir(exist_ok=True)
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(all_rows, f, indent=4, ensure_ascii=False)
+    # Save intermediate results in case Phase 2 crashes
+    intermediate_file = Path("output/intermediate_nct_scopes.json")
+    intermediate_file.parent.mkdir(exist_ok=True)
+    with open(intermediate_file, "w", encoding="utf-8") as f:
+        json.dump(intermediate_rows, f, indent=4, ensure_ascii=False)
         
-    print(f"\n✅ Done! Extracted {len(all_rows)} total scope elements across all PDFs.")
-    print(f"💾 Saved to {out_file.absolute()}")
+    print("\n" + "="*80)
+    print("🌐 PHASE 2: EXTERNAL SCRAPING & TBCB ENRICHMENT")
+    print("="*80)
+    
+    # ── PHASE 2: Fetch external fields based on the extracted BPC ──
+    # We group by scheme name to avoid scraping the same scheme multiple times for each granular scope element
+    processed_schemes = {}
+    
+    final_rows = []
+    for row in intermediate_rows:
+        scheme_name = row["Transmission Scheme"]
+        bpc = row["Tender Issuing Authority"]
+        
+        if scheme_name not in processed_schemes:
+            print(f"\n--- Fetching External Data for: {scheme_name[:80]}... ---")
+            tbcb_remarks = extract_remarks_from_tbcb_report(scheme_name)
+            tender_data = _fetch_external_tender_data(scheme_name, bpc)
+            processed_schemes[scheme_name] = {
+                "tbcb_remarks": tbcb_remarks,
+                "tender_data": tender_data
+            }
+        
+        ext_data = processed_schemes[scheme_name]
+        
+        # Merge the external data into the row
+        row["Remarks"] = row["Remarks"] if row["Remarks"] else (ext_data["tbcb_remarks"] or "")
+        row["Date of tender issuance"] = ext_data["tender_data"]["Date of tender issuance"]
+        row["Date of Bid Submission"] = ext_data["tender_data"]["Date of Bid Submission"]
+        row["Tentative SCOD"] = ext_data["tender_data"]["Tentative SCOD"]
+        row["Awarded To"] = ext_data["tender_data"]["Awarded To"]
+        
+        final_rows.append(row)
+        
+    out_file = Path("output/final_extracted_scopes.json")
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(final_rows, f, indent=4, ensure_ascii=False)
+        
+    print(f"\n✅ Done! Extracted {len(final_rows)} total scope elements across all PDFs.")
+    print(f"💾 Saved final enriched output to {out_file.absolute()}")
 
 if __name__ == "__main__":
     main()
