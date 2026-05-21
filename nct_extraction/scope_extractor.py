@@ -297,39 +297,59 @@ def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     
-    # We just want to test on 40th NCT Meeting
-    registry_path = Path("scheme_seed_registry.json")
+    # Load the by-PDF registry so we know which PDF contains which schemes
+    registry_path = Path("scheme_seed_registry_by_pdf.json")
     if not registry_path.exists():
-        registry_path = Path("nct_extraction/output/scheme_seed_registry.json")
-        
-    with open(registry_path, "r", encoding="utf-8") as f:
-        registry = json.load(f)
-        
-    schemes_40th = registry.get("40th NCT Meeting", [])
-    if not schemes_40th:
-        print("No schemes found for 40th NCT Meeting in registry.")
+        print(f"Registry file not found at {registry_path.absolute()}")
         return
         
-    # Hardcoded path to 40th NCT meeting PDF for this test
-    pdf_path = "uploads/CEA-NCT-Minutes/01_40th_NCT_MoM.pdf"
-    
-    print(f"Found {len(schemes_40th)} schemes for 40th NCT Meeting.")
+    with open(registry_path, "r", encoding="utf-8") as f:
+        registry_by_pdf = json.load(f)
+        
+    pdf_dir = Path("uploads/CEA-NCT-Minutes")
     
     all_rows = []
-    for scheme in schemes_40th:
-        print(f"\n--- Processing: {scheme[:80]}... ---")
-        rows = extract_scope_for_scheme(pdf_path, scheme, "40th NCT Meeting")
-        all_rows.extend(rows)
-        # rate limit
-        time.sleep(2)
+    
+    # Iterate through all PDFs and their corresponding scheme mappings
+    for pdf_filename, meetings_dict in registry_by_pdf.items():
+        pdf_path = pdf_dir / pdf_filename
         
+        if not pdf_path.exists():
+            print(f"Warning: PDF {pdf_path} not found, skipping...")
+            continue
+            
+        print(f"\n{'='*60}")
+        print(f"📄 Processing PDF: {pdf_filename}")
+        print(f"{'='*60}")
+        
+        for meeting_label, schemes in meetings_dict.items():
+            if not schemes:
+                continue
+                
+            print(f"\n>>> Meeting: {meeting_label} ({len(schemes)} schemes)")
+            for scheme in schemes:
+                print(f"\n--- Extracting Scope for: {scheme[:80]}... ---")
+                try:
+                    rows = extract_scope_for_scheme(str(pdf_path), scheme, meeting_label)
+                    if rows:
+                        all_rows.extend(rows)
+                        print(f"    ✓ Extracted {len(rows)} scope elements.")
+                    else:
+                        print(f"    - No scope elements found.")
+                except Exception as e:
+                    print(f"    ! Error extracting scheme: {e}")
+                    
+                # Rate limit to avoid API throttling
+                time.sleep(2)
+                
     out_file = Path("output/final_extracted_scopes.json")
     out_file.parent.mkdir(exist_ok=True)
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(all_rows, f, indent=4, ensure_ascii=False)
         
-    print(f"\nDone! Extracted {len(all_rows)} total scope elements.")
-    print(f"Saved to {out_file}")
+    print(f"\n✅ Done! Extracted {len(all_rows)} total scope elements across all PDFs.")
+    print(f"💾 Saved to {out_file.absolute()}")
 
 if __name__ == "__main__":
     main()
+
