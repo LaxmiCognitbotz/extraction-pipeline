@@ -162,10 +162,10 @@ def _fetch_external_tender_data(scheme_name: str, bpc: str) -> dict:
         return result
 
     # 1. Determine which scraper to use
-    bpc_upper = bpc.upper()
-    if "RECPDCL" in bpc_upper or "RECTPCL" in bpc_upper:
+    bpc_upper = bpc.upper().replace(" ", "")
+    if "RECPDCL" in bpc_upper or "RECTPCL" in bpc_upper or "REC" in bpc_upper:
         scraper = recpdcl_tender_scraper
-    elif "PFCCL" in bpc_upper or "PFC" in bpc_upper:
+    elif "PFCCL" in bpc_upper or "PFC" in bpc_upper or "PFFCL" in bpc_upper:
         scraper = pfcclindia_tender_scraper
     else:
         print(f"[-] Unrecognized BPC '{bpc}'. Skipping scraping.")
@@ -267,14 +267,38 @@ def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str
     tender_data = _fetch_external_tender_data(scheme_name, details.tender_issuing_authority or "")
         
     final_rows = []
-    for scope in details.scope_elements:
-        # Remarks logic: use table remarks if any, else use TBCB report remarks
-        final_remarks = scope.remarks if scope.remarks else (tbcb_remarks or "")
-        
+    
+    # If the LLM found granular scope items, iterate through them
+    if details.scope_elements:
+        for scope in details.scope_elements:
+            final_remarks = scope.remarks if scope.remarks else (tbcb_remarks or "")
+            row = {
+                "Transmission Scheme": details.transmission_scheme,
+                "Transmission Scope": scope.transmission_scope,
+                "MVA": scope.mva or "",
+                "Status": "Approved",
+                "Approval of Elements in which NCT": meeting_label,
+                "Source": "NCT",
+                "Tender Issuing Authority": details.tender_issuing_authority or "",
+                "Date of tender issuance": tender_data["Date of tender issuance"],
+                "Date of Bid Submission": tender_data["Date of Bid Submission"],
+                "Execution Timeline": details.execution_timeline or "",
+                "Tentative SCOD": tender_data["Tentative SCOD"],
+                "Awarded To": tender_data["Awarded To"],
+                "Project Cost (Cr.)": details.project_cost_cr or "",
+                "SPV Transfer Date": "",
+                "original SCOD": "",
+                "Antipicated SCOD": "",
+                "Remarks": final_remarks
+            }
+            final_rows.append(row)
+    else:
+        # If no granular scope items were found (e.g. status tables often omit scope details),
+        # we STILL want to output a row for the scheme itself with the scheme-level details!
         row = {
-            "Transmission Scheme": details.transmission_scheme,
-            "Transmission Scope": scope.transmission_scope,
-            "MVA": scope.mva or "",
+            "Transmission Scheme": details.transmission_scheme or scheme_name,
+            "Transmission Scope": "",  # Empty since we couldn't find granular breakdown
+            "MVA": "",
             "Status": "Approved",
             "Approval of Elements in which NCT": meeting_label,
             "Source": "NCT",
@@ -288,7 +312,7 @@ def extract_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label: str
             "SPV Transfer Date": "",
             "original SCOD": "",
             "Antipicated SCOD": "",
-            "Remarks": final_remarks
+            "Remarks": tbcb_remarks or ""
         }
         final_rows.append(row)
         
