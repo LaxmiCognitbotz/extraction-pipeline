@@ -25,7 +25,7 @@ class ScopeElement(BaseModel):
 class SchemeDetails(BaseModel):
     transmission_scheme: str = Field(description="The full name of the transmission scheme.")
     tender_issuing_authority: Optional[str] = Field(description="Bid Process Coordinator (BPC) assigned. Typically 'RECPDCL', 'PFCCL', 'CTUIL', or 'POWERGRID'.")
-    execution_timeline: Optional[str] = Field(description="Implementation timeframe. E.g., '24 months', '36 months'. Extract exactly as written.")
+    execution_timeline: Optional[str] = Field(description="Implementation timeframe or completion date. If a duration is written, extract exactly as written e.g. '24 months', '36 months from date of allocation'. If a target date is written, extract as-is e.g. '31-03-2029', '31.03.2028'.")
     project_cost_cr: Optional[str] = Field(description="Estimated Project Cost in Crores (Cr), if mentioned. Just the number/string.")
     scope_elements: List[ScopeElement] = Field(description="The individual scope items/elements belonging to this scheme.")
 
@@ -159,8 +159,13 @@ def _fetch_external_tender_data(scheme_name: str, bpc: str) -> dict:
         return result
 
     # 1. Determine which scraper to use
+    # Non-TBCB authorities — skip scraping entirely (they have no public tender portal)
+    NON_TBCB_BPC = {"POWERGRID", "PGCIL", "CTUIL", "CTU", "TOBEDECIDEDBYMOP", ""}
     bpc_upper = bpc.upper().replace(" ", "")
-    if "RECPDCL" in bpc_upper or "RECTPCL" in bpc_upper or "REC" in bpc_upper:
+    if bpc_upper in NON_TBCB_BPC or "TOBEDECIDED" in bpc_upper:
+        print(f"[-] BPC '{bpc}' is non-TBCB or undecided. Skipping scraping.")
+        return result
+    elif "RECPDCL" in bpc_upper or "RECTPCL" in bpc_upper:
         scraper = recpdcl_tender_scraper
     elif "PFCCL" in bpc_upper or "PFC" in bpc_upper or "PFFCL" in bpc_upper:
         scraper = pfcclindia_tender_scraper
@@ -184,8 +189,11 @@ def _fetch_external_tender_data(scheme_name: str, bpc: str) -> dict:
     
     best_folder = None
     
-    # 3. Search and download
+    # 3. Search and download — bail fast if site is unreachable
+    _site_unreachable = False
     for query in queries:
+        if _site_unreachable:
+            break
         print(f"[*] Running scraper for query: '{query}'")
         try:
             # The run() function downloads to out_dir / make_folder_name(query)
@@ -199,7 +207,12 @@ def _fetch_external_tender_data(scheme_name: str, bpc: str) -> dict:
                 best_folder = target_folder
                 break
         except Exception as e:
-            print(f"[!] Scraper failed for query '{query}': {e}")
+            err_str = str(e)
+            print(f"[!] Scraper failed for query '{query}': {err_str[:120]}")
+            # If site is completely unreachable, stop all retries immediately
+            if "ERR_CONNECTION_RESET" in err_str or "ERR_CONNECTION_TIMED_OUT" in err_str or "net::ERR_" in err_str:
+                print(f"[!] Site appears unreachable. Aborting remaining queries for this scheme.")
+                _site_unreachable = True
             
     if not best_folder:
         return result
@@ -272,7 +285,7 @@ def extract_nct_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label:
                 "Transmission Scope": scope.transmission_scope,
                 "MVA": scope.mva or "",
                 "Status": "Approved",
-                "Approval of Elements in which NCT": meeting_label,
+                "Approval of Elements in which NCT": re.search(r'(\d+)', meeting_label).group(1) if re.search(r'(\d+)', meeting_label) else meeting_label,
                 "Source": "NCT",
                 "Tender Issuing Authority": details.tender_issuing_authority or "",
                 "Date of tender issuance": "",
@@ -294,7 +307,7 @@ def extract_nct_scope_for_scheme(pdf_path: str, scheme_name: str, meeting_label:
             "Transmission Scope": "",  
             "MVA": "",
             "Status": "Approved",
-            "Approval of Elements in which NCT": meeting_label,
+            "Approval of Elements in which NCT": re.search(r'(\d+)', meeting_label).group(1) if re.search(r'(\d+)', meeting_label) else meeting_label,
             "Source": "NCT",
             "Tender Issuing Authority": details.tender_issuing_authority or "",
             "Date of tender issuance": "",
