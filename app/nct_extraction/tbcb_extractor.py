@@ -1,17 +1,13 @@
+import re
 import sys
 from pathlib import Path
 from typing import Optional
 import pdfplumber
 
-# Make sure we can import from app
-project_root = str(Path(__file__).parent.parent)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 from pydantic import BaseModel, Field
-from app.llm import get_model, ensure_api_key
+from shared.llm import get_model, ensure_api_key
 
 class TbcbRemarks(BaseModel):
     remarks: str = Field(description="The remarks text found for the scheme. If not found, leave blank.")

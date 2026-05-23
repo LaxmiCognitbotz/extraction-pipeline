@@ -27,8 +27,8 @@ import pdfplumber
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
-from nct_extraction.schemas import NCTElement, NCTExtractionResult
-from nct_extraction.seed_extractor import load_registry, get_seeds_for_meeting
+from app.nct_extraction.schemas import NCTElement, NCTExtractionResult
+from app.nct_extraction.seed_extractor import load_registry, get_seeds_for_meeting
 
 # ── Lazy agent init ──────────────────────────────────────────────────
 
@@ -41,11 +41,7 @@ def _get_agent() -> Agent[None, list[NCTElement]]:
     if _agent is not None:
         return _agent
 
-    project_root = str(Path(__file__).parent.parent)
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-
-    from app.llm import get_model, ensure_api_key
+    from shared.llm import get_model, ensure_api_key
     ensure_api_key()
     model = get_model()
 

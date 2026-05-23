@@ -11,15 +11,11 @@ import sys
 import time
 from pathlib import Path
 
-# Ensure project root is importable
-project_root = str(Path(__file__).parent.parent)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-from nct_extraction.extractor import extract_from_pdf
-from nct_extraction.reporting import build_report
-from nct_extraction.to_excel import write_excel
-from nct_extraction.seed_extractor import (
+# Project root is in sys.path when running as a package
+from app.nct_extraction.extractor import extract_from_pdf
+from app.nct_extraction.reporting import build_report
+from app.nct_extraction.to_excel import write_excel
+from app.nct_extraction.seed_extractor import (
     build_seed_registry, load_registry, _DEFAULT_REGISTRY_PATH
 )
 

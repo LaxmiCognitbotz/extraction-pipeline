@@ -88,14 +88,10 @@ def _get_seed_agent():
     if _seed_agent is not None:
         return _seed_agent
 
-    project_root = str(Path(__file__).parent.parent)
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-
     try:
         from pydantic_ai import Agent
         from pydantic_ai.settings import ModelSettings
-        from app.llm import get_model, ensure_api_key
+        from shared.llm import get_model, ensure_api_key
         ensure_api_key()
         model = get_model()
 
@@ -115,6 +111,7 @@ def _get_seed_agent():
         _seed_agent = None
 
     return _seed_agent
+
 
 
 _UNIFIED_SEED_SYSTEM_PROMPT = """\
@@ -830,7 +827,7 @@ def _extract_current_meeting_seeds_via_llm(
         # without overriding, but we can create a quick temporary agent)
         from pydantic_ai import Agent
         from pydantic_ai.settings import ModelSettings
-        from app.llm import get_model, ensure_api_key
+        from shared.llm import get_model, ensure_api_key
         
         ensure_api_key()
         
@@ -935,7 +932,7 @@ def extract_seeds_from_pdf(
         # We temporarily override the system prompt to use the UNIFIED prompt
         from pydantic_ai import Agent
         from pydantic_ai.settings import ModelSettings
-        from app.llm import get_model, ensure_api_key
+        from shared.llm import get_model, ensure_api_key
         
         ensure_api_key()
         

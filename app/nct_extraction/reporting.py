@@ -18,9 +18,9 @@ from typing import Iterable, Optional
 
 import pdfplumber
 
-from nct_extraction.schemas import NCTElement, NCTReport, NCTReportRow
-from nct_extraction.tender_query import suggest_queries
-from nct_extraction.extraction.tender_tools import download_pfccl_tender_pdfs, download_recpdcl_tender_pdfs
+from app.nct_extraction.schemas import NCTElement, NCTReport, NCTReportRow
+from app.nct_extraction.tender_query import suggest_queries
+from app.nct_extraction.tender_tools import download_pfccl_tender_pdfs, download_recpdcl_tender_pdfs
 
 
 _DATE_PATTERNS = [
@@ -374,7 +374,7 @@ def build_report(
     *,
     tender_download_root: Path | None = None,
 ) -> NCTReport:
-    download_root = tender_download_root or (Path(__file__).parent.parent / "uploads")
+    download_root = tender_download_root or (Path(__file__).parent.parent.parent / "uploads")
     # Permanent default: ON. Disable by setting DISABLE_AUTO_DOWNLOAD_TENDERS=true.
     disable_auto = os.getenv("DISABLE_AUTO_DOWNLOAD_TENDERS", "false").strip().lower() in {"1", "true", "yes", "y"}
     auto_download = not disable_auto

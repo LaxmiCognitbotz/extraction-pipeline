@@ -1,1 +1,0 @@
-# NCT Minutes Extraction Pipeline

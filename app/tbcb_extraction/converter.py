@@ -20,7 +20,7 @@ from pathlib import Path
 import camelot
 import pandas as pd
 
-from app.config import settings
+from app.tbcb_extraction.config import settings
 
 
 # ── Data Structures ────────────────────────────────────────────────────

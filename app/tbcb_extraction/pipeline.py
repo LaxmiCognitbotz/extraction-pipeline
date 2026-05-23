@@ -13,10 +13,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.config import settings
-from app.converter import extract_tables_from_pdf
-from app.extractor import extract_from_corpus
-from app.schemas import DocType, ExtractionResult
+from app.tbcb_extraction.config import settings
+from app.tbcb_extraction.converter import extract_tables_from_pdf
+from app.tbcb_extraction.extractor import extract_from_corpus
+from app.tbcb_extraction.schemas import DocType, ExtractionResult
 
 
 # ── Doc-type inference ─────────────────────────────────────────────────
@@ -81,7 +81,7 @@ def run_pipeline(
         if not md_path.exists():
             raise FileNotFoundError(f"Markdown not found at {md_path}")
         print(f"[pipeline] Using existing {md_path.name}")
-        from app.extractor import extract_elements
+        from app.tbcb_extraction.extractor import extract_elements
         result = extract_elements(md_path, doc_type, region)
         result.source_pdf = str(pdf_path)
     else:

@@ -8,14 +8,11 @@ from pydantic import BaseModel, Field
 
 import pdfplumber
 
-# Make sure we can import from app
-project_root = str(Path(__file__).parent.parent)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# The project root is automatically in the path when running as a package
 
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
-from app.llm import get_model, ensure_api_key
+from shared.llm import get_model, ensure_api_key
 
 # ── Pydantic Schemas for Scope Extraction ──
 
@@ -136,12 +133,12 @@ def _extract_text_and_tables(pdf_path: str, pages: list[int]) -> str:
 import difflib
 import os
 import glob
-from nct_extraction.tender_query import suggest_queries
-from nct_extraction.tbcb_extractor import extract_remarks_from_tbcb_report
+from app.nct_extraction.tender_query import suggest_queries
+from app.nct_extraction.tbcb_extractor import extract_remarks_from_tbcb_report
 
 try:
-    from nct_extraction.extraction.scrapers import recpdcl_tender_scraper
-    from nct_extraction.extraction.scrapers import pfcclindia_tender_scraper
+    from app.nct_extraction.scrapers import recpdcl_tender_scraper
+    from app.nct_extraction.scrapers import pfcclindia_tender_scraper
 except ImportError:
     recpdcl_tender_scraper = None
     pfcclindia_tender_scraper = None

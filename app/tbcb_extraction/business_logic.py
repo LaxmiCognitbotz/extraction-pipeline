@@ -19,7 +19,7 @@ import hashlib
 import re
 from typing import Optional
 
-from app.schemas import DocType, TransmissionElement
+from app.tbcb_extraction.schemas import DocType, TransmissionElement
 
 
 # ── 1. Element Code Generation ─────────────────────────────────────────

@@ -26,9 +26,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from app.extractor import extract_elements
-from app.pipeline import run_batch, run_pipeline
-from app.schemas import DocType
+from app.tbcb_extraction.extractor import extract_elements
+from app.tbcb_extraction.pipeline import run_batch, run_pipeline
+from app.tbcb_extraction.schemas import DocType
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -121,7 +121,7 @@ def main() -> None:
         import json
         from datetime import datetime, timezone
 
-        from app.config import settings
+        from app.tbcb_extraction.config import settings
 
         out_dir = Path(args.output_dir) if args.output_dir else settings.output_dir
         out_dir.mkdir(parents=True, exist_ok=True)

@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 
 
+# shared/llm.py → shared → project root  (parents[3] from nct_extraction/tender_tools.py)
+# app/nct_extraction/tender_tools.py  →  parents[2] = project root
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 PFCCL_SCRIPT = Path(__file__).parent / "scrapers" / "pfcclindia_tender_scraper.py"
@@ -67,4 +69,3 @@ def download_recpdcl_tender_pdfs(*, query: str) -> Path:
     """Downloads RECPDCL/RECTPCL tender PDFs for the given exact-substring query."""
     uploads = REPO_ROOT / "uploads" / "RECPDCL-RECTPCL-TENDER"
     return _run_scraper(RECPDCL_SCRIPT, query=query, output_dir=uploads)
-

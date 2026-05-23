@@ -22,17 +22,17 @@ from typing import TYPE_CHECKING
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
-from app.business_logic import post_process_elements
-from app.config import settings
-from app.llm import ensure_api_key, get_model
-from app.schemas import (
+from app.tbcb_extraction.business_logic import post_process_elements
+from app.tbcb_extraction.config import settings
+from shared.llm import ensure_api_key, get_model
+from app.tbcb_extraction.schemas import (
     DocType,
     ExtractionResult,
     TransmissionElement,
 )
 
 if TYPE_CHECKING:
-    from app.converter import CamelotCorpus
+    from app.tbcb_extraction.converter import CamelotCorpus
 
 
 # ── System Prompt (short — schema descriptions do the heavy lifting) ──
@@ -323,7 +323,7 @@ def extract_elements(
     md_content = md_path.read_text(encoding="utf-8")
     print(f"[extractor] Read {md_path.name} ({len(md_content):,} chars)")
 
-    from app.converter import chunk_text
+    from app.tbcb_extraction.converter import chunk_text
     chunks = chunk_text(md_content)
     print(f"[extractor] {len(chunks)} chunk(s) -> {settings.model_name}")
 
