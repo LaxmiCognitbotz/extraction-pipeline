@@ -211,9 +211,17 @@ def make_folder_name(user_input: str, max_len: int = 60) -> str:
 
 
 def goto_retry(page, url: str, wait_ms: int = 3000, retries: int = 3):
+    # These errors mean the site is blocked/unreachable — no point retrying
+    HARD_NETWORK_ERRORS = (
+        "ERR_CONNECTION_RESET",
+        "ERR_CONNECTION_TIMED_OUT",
+        "ERR_CONNECTION_REFUSED",
+        "ERR_NAME_NOT_RESOLVED",
+        "net::ERR_",
+    )
     for attempt in range(1, retries + 1):
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
             page.wait_for_timeout(wait_ms)
             return
         except PWTimeout:
@@ -222,10 +230,16 @@ def goto_retry(page, url: str, wait_ms: int = 3000, retries: int = 3):
                 raise
             time.sleep(attempt * 5)
         except Exception as e:
-            print(f"  [warn] error {attempt}/{retries}: {e}")
+            err_str = str(e)
+            # Hard network error — raise immediately, no retry
+            if any(marker in err_str for marker in HARD_NETWORK_ERRORS):
+                print(f"  [!] Hard network error — site unreachable, aborting retries.")
+                raise
+            print(f"  [warn] error {attempt}/{retries}: {err_str[:120]}")
             if attempt == retries:
                 raise
             time.sleep(5)
+
 
 
 def paginate_all(page):
