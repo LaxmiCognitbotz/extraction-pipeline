@@ -1,21 +1,22 @@
 """
 Excel converter for CTUIL Compliance extraction results.
-=========================================================
 
-Accepts a list of FileExtractionResult objects and writes a styled .xlsx
-workbook.  One worksheet is created per logical sub-table.
+Outputs ONE single sheet containing every row from every table across
+all processed PDF files. Each row includes metadata columns (source_file,
+report_period, table_type, table_name) prepended so rows are self-describing.
 
-Column ordering contract
-─────────────────────────
-  Col A  : report_period          ← always first
-  Col B  : sl_no
-  Col C  : application_id
-  Col D  : name_of_applicant
-  ... remaining fields in Pydantic model declaration order ...
-  Last   : due_date_of_fc  OR  due_date_for_submission_of_land_docs  ← always last
-
-All date financial_closure_extraction strings (no Excel date formatting)
-to prevent format corruption.  Cells are never merged.
+Column order:
+  source_file | report_period | table_type | table_name |
+  application_id | name_of_applicant | submission_date | region |
+  location_of_project | type_of_project | installed_capacity_mw |
+  first_scod_of_generation_project | connectivity_granted_mw | substation |
+  date_of_connectivity_intimation_in_principle |
+  date_of_connectivity_intimation_final |
+  connectivity_gna_start_date_in_principle |
+  connectivity_gna_start_date_firm |
+  criterion_for_applying | revised_criterion | revised_scod |
+  application_status |
+  due_date_of_fc | due_date_for_submission_of_land_docs
 """
 
 from __future__ import annotations
@@ -27,168 +28,166 @@ import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from app.financial_closure_extraction.models import (
-    FCDeadlineTable,
-    FileExtractionResult,
-    LandDocDeadlineTable,
-)
+from app.financial_closure_extraction.models import FileExtractionResult
 
 logger = logging.getLogger(__name__)
 
-# ── Style constants ────────────────────────────────────────────────────────────
-_HEADER_FILL = PatternFill("solid", fgColor="1F3864")   # dark navy
-_HEADER_FONT = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
-_DATA_FONT   = Font(name="Calibri", size=10)
-_ALT_FILL    = PatternFill("solid", fgColor="EAF0FB")   # pale blue alternating row
+# ── Styles ────────────────────────────────────────────────────────────────────
+_HEADER_FILL    = PatternFill("solid", fgColor="1F3864")
+_HEADER_FONT    = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+_META_FILL      = PatternFill("solid", fgColor="2E5FA3")   # blue for metadata cols
+_META_FONT      = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+_DATA_FONT      = Font(name="Calibri", size=10)
+_ALT_FILL       = PatternFill("solid", fgColor="EAF0FB")
+_DEADLINE_FILL  = PatternFill("solid", fgColor="FFF2CC")   # yellow highlight for deadlines
+_DEADLINE_FONT  = Font(bold=True, name="Calibri", size=10, color="7B3F00")
 
-# Column ordering: fields always first, fields always last
-_PRIORITY_FIRST = ["report_period", "sl_no", "application_id", "name_of_applicant"]
-_PRIORITY_LAST  = ["due_date_of_fc", "due_date_for_submission_of_land_docs"]
+# ── Canonical column order ────────────────────────────────────────────────────
+# Metadata first, then all data fields, deadlines always last.
+_META_COLS = ["source_file", "report_period", "table_type", "table_name"]
+
+_DATA_COLS = [
+    "application_id",
+    "name_of_applicant",
+    "submission_date",
+    "region",
+    "location_of_project",
+    "type_of_project",
+    "installed_capacity_mw",
+    "first_scod_of_generation_project",
+    "connectivity_granted_mw",
+    "substation",
+    "date_of_connectivity_intimation_in_principle",
+    "date_of_connectivity_intimation_final",
+    "connectivity_gna_start_date_in_principle",
+    "connectivity_gna_start_date_firm",
+    # FC-specific
+    "criterion_for_applying",
+    "revised_criterion",
+    "revised_scod",
+    "application_status",
+]
+
+_DEADLINE_COLS = [
+    "due_date_of_fc",
+    "due_date_for_submission_of_land_docs",
+]
+
+ALL_COLUMNS = _META_COLS + _DATA_COLS + _DEADLINE_COLS
+
+# Human-readable header labels (same order as ALL_COLUMNS)
+_HEADER_LABELS = {
+    "source_file":                                      "Source File",
+    "report_period":                                    "Report Period",
+    "table_type":                                       "Table Type",
+    "table_name":                                       "Table Name",
+    "application_id":                                   "Application ID",
+    "name_of_applicant":                                "Name of Applicant",
+    "submission_date":                                  "Submission Date",
+    "region":                                           "Region",
+    "location_of_project":                              "Location of Project",
+    "type_of_project":                                  "Type of Project",
+    "installed_capacity_mw":                            "Installed Capacity (MW)",
+    "first_scod_of_generation_project":                 "First SCOD of Generation Project",
+    "connectivity_granted_mw":                          "Connectivity Granted (MW)",
+    "substation":                                       "Substation",
+    "date_of_connectivity_intimation_in_principle":     "Date of Conn. Intimation (In-principle)",
+    "date_of_connectivity_intimation_final":            "Date of Conn. Intimation (Final)",
+    "connectivity_gna_start_date_in_principle":         "Connectivity/GNA Start Date (In-principle)",
+    "connectivity_gna_start_date_firm":                 "Connectivity/GNA Start Date (Firm)",
+    "criterion_for_applying":                           "Criterion for Applying",
+    "revised_criterion":                                "Revised Criterion",
+    "revised_scod":                                     "Revised SCOD",
+    "application_status":                               "Application Status",
+    "due_date_of_fc":                                   "Due Date of FC",
+    "due_date_for_submission_of_land_docs":             "Due Date for Land Docs",
+}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Internal helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _ordered_headers(sample_row_dict: dict) -> list[str]:
-    """
-    Return column headers in the canonical order:
-      PRIORITY_FIRST → all other fields (model declaration order) → PRIORITY_LAST
-    """
-    all_keys = list(sample_row_dict.keys())
-    ordered: list[str] = []
-
-    for k in _PRIORITY_FIRST:
-        if k in all_keys:
-            ordered.append(k)
-
-    for k in all_keys:
-        if k not in ordered and k not in _PRIORITY_LAST:
-            ordered.append(k)
-
-    for k in _PRIORITY_LAST:
-        if k in all_keys:
-            ordered.append(k)
-
-    return ordered
-
-
-def _auto_size_columns(ws: openpyxl.worksheet.worksheet.Worksheet) -> None:
-    """Set each column width to fit its longest cell value (max 60 chars)."""
+def _auto_size(ws: openpyxl.worksheet.worksheet.Worksheet) -> None:
     for col_cells in ws.columns:
-        max_len = 0
         col_letter = get_column_letter(col_cells[0].column)
-        for cell in col_cells:
-            try:
-                cell_len = len(str(cell.value)) if cell.value is not None else 0
-                max_len = max(max_len, cell_len)
-            except Exception:  # noqa: BLE001
-                pass
-        ws.column_dimensions[col_letter].width = min(max_len + 4, 60)
-
-
-def _unique_sheet_title(wb: openpyxl.Workbook, candidate: str) -> str:
-    """Return a unique sheet title within the workbook (Excel limit: 31 chars)."""
-    base = candidate[:28]
-    title = base
-    counter = 1
-    existing = {s.title for s in wb.worksheets}
-    while title in existing:
-        title = f"{base}_{counter}"
-        counter += 1
-    return title
-
-
-def _write_table_sheet(
-    wb: openpyxl.Workbook,
-    sheet_title: str,
-    headers: list[str],
-    rows: list[dict],
-) -> None:
-    """Write one table to one new worksheet with styled header + data rows."""
-    ws = wb.create_sheet(title=_unique_sheet_title(wb, sheet_title))
-
-    # Header row
-    for col_idx, header in enumerate(headers, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=header)
-        cell.font      = _HEADER_FONT
-        cell.fill      = _HEADER_FILL
-        cell.alignment = Alignment(
-            horizontal="center", vertical="center", wrap_text=True
+        max_len = max(
+            (len(str(c.value)) if c.value is not None else 0) for c in col_cells
         )
-    ws.row_dimensions[1].height = 32
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 55)
 
-    # Data rows
-    for row_idx, record in enumerate(rows, start=2):
-        apply_alt = (row_idx % 2 == 0)
-        for col_idx, key in enumerate(headers, start=1):
-            val  = record.get(key)
-            cell = ws.cell(row=row_idx, column=col_idx, value=val)
-            cell.font      = _DATA_FONT
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
-            if apply_alt:
-                cell.fill = _ALT_FILL
-
-    _auto_size_columns(ws)
-    ws.freeze_panes = "A2"   # keep header visible while scrolling
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API
-# ─────────────────────────────────────────────────────────────────────────────
 
 def results_to_excel(
     results: list[FileExtractionResult],
     output_path: Path,
 ) -> Path:
     """
-    Convert a list of FileExtractionResult objects into a styled Excel workbook.
+    Write all extraction results into a single Excel sheet.
 
-    One sheet is created per table, named:
-      <source_file_stem (truncated)>_<table_name>
+    Every row from every table across all files is written to one sheet.
+    Metadata columns (source_file, report_period, table_type, table_name)
+    are prepended to each row so the sheet is self-contained and filterable.
 
-    Args:
-        results:     List of per-file extraction results.
-        output_path: Target .xlsx file path (parent directories created automatically).
-
-    Returns:
-        The resolved output_path.
+    Deadline columns are highlighted in amber — they are always last.
     """
     wb = openpyxl.Workbook()
-    wb.remove(wb.active)   # remove the default blank sheet
-    total_sheets = 0
+    ws = wb.active
+    ws.title = "CTUIL Compliance Data"
+
+    # ── Header row ────────────────────────────────────────────────────────────
+    for col_idx, key in enumerate(ALL_COLUMNS, start=1):
+        label = _HEADER_LABELS.get(key, key)
+        cell = ws.cell(row=1, column=col_idx, value=label)
+        is_meta     = key in _META_COLS
+        is_deadline = key in _DEADLINE_COLS
+        if is_deadline:
+            cell.fill = _DEADLINE_FILL
+            cell.font = _DEADLINE_FONT
+        elif is_meta:
+            cell.fill = _META_FILL
+            cell.font = _META_FONT
+        else:
+            cell.fill = _HEADER_FILL
+            cell.font = _HEADER_FONT
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 36
+
+    # ── Data rows ─────────────────────────────────────────────────────────────
+    row_idx = 2
+    total_written = 0
 
     for file_result in results:
-        # Use first 18 chars of stem to keep sheet titles short
-        source_stem = Path(file_result.source_file).stem[:18]
-
         for tbl in file_result.tables:
-            if not tbl.rows:
-                logger.warning(
-                    "  [%s / %s]  0 rows — sheet skipped",
-                    file_result.source_file, tbl.table_name,
-                )
-                continue
+            for row in tbl.rows:
+                row_dict = row.model_dump()
+                apply_alt = (row_idx % 2 == 0)
 
-            # Build ordered column list from the first row's keys
-            first_row_dict = tbl.rows[0].model_dump()
-            headers = _ordered_headers(first_row_dict)
+                for col_idx, key in enumerate(ALL_COLUMNS, start=1):
+                    if key == "source_file":
+                        val = file_result.source_file
+                    elif key == "table_type":
+                        val = tbl.table_type
+                    elif key == "table_name":
+                        val = tbl.table_name
+                    else:
+                        val = row_dict.get(key)
 
-            # Serialise all rows
-            serialised = [r.model_dump() for r in tbl.rows]
+                    cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                    cell.font = _DATA_FONT
+                    cell.alignment = Alignment(vertical="top", wrap_text=True)
+                    if key in _DEADLINE_COLS and val:
+                        cell.fill = PatternFill("solid", fgColor="FFFACD")
+                    elif apply_alt:
+                        cell.fill = _ALT_FILL
 
-            sheet_title = f"{source_stem}_{tbl.table_name}"
-            _write_table_sheet(wb, sheet_title, headers, serialised)
-            total_sheets += 1
+                row_idx += 1
+                total_written += 1
 
-    if total_sheets == 0:
-        ws = wb.create_sheet("No Data")
-        ws["A1"] = "No tables were extracted from the provided PDFs."
-        logger.warning("No data sheets written — workbook contains placeholder only.")
+    if total_written == 0:
+        ws.cell(row=2, column=1, value="No data extracted from the provided PDFs.")
+        logger.warning("No rows written to Excel.")
+
+    _auto_size(ws)
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions   # enable column filtering
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(str(output_path))
-    logger.info(
-        "Excel workbook saved: %s  (%d sheet(s))", output_path, total_sheets
-    )
+    logger.info("Excel saved: %s  (%d row(s))", output_path, total_written)
     return output_path

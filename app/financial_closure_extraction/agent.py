@@ -29,35 +29,48 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# System prompt — minimal by design
-#
-# WHY SO SHORT?
-#   Pydantic-AI already injects the full JSON schema (field names, types,
-#   Field descriptions) into the LLM call via output_type=PageExtractionResult.
-#   The Field(description=...) strings on every model field carry the field-level
-#   instructions.  Python post-processing handles Excel serial conversion.
-#   This prompt covers ONLY the three things the schema cannot express:
-#     1. Verbatim copy behaviour + null rule
-#     2. Table classification (FC vs Land Doc) from the heading line
-#     3. report_period format + "Spet" typo
+# System prompt — minimal by design.
+# The Pydantic schema (injected via output_type) carries all field definitions.
+# This prompt only covers: verbatim extraction, null rule, date edge case,
+# column-name normalisation across PDF variants, and table classification.
 # ─────────────────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """
-Extract every table row from the PDF content exactly as printed.
-Follow the Pydantic output schema — its field names and descriptions are your guide.
+Extract every table row from the PDF exactly as printed.
+The Pydantic output schema defines all field names — follow it precisely.
 
-- Copy all values verbatim. Never summarise, infer, or skip any row.
-- Blank / dash cell → null.
+Rules:
+- Every row must be extracted. Never skip, summarise, or infer.
+- Blank / dash / empty cell → null.
 - Multi-line cell → join with one space.
-- 5-digit integer in a date field = Excel serial → return "DD-MM-YYYY"
+- 5-digit integer in a date field = Excel serial → convert to DD-MM-YYYY
   (formula: 1899-12-30 + serial days). Never return a raw integer.
-- Heading contains "Financial Closure" → FCDeadlineTable (due_date_of_fc).
-- Heading contains "Land Document" or "Land Doc" → LandDocDeadlineTable
-  (due_date_for_submission_of_land_docs).
-- table_name from sub-heading: fc_deadline_transition_cases /
-  fc_deadline_gna_regulation / fc_deadline_main / land_doc_deadline_main.
-- report_period from title "from X to Y YYYY" → "X YYYY - Y YYYY".
-  Known typo: "Spet" = September.
+- Skip the "Sl. No" / serial-number column entirely — it is not in the schema.
+
+Column name normalisation (different PDFs use different headers for the same data):
+- "SCOD as per application (First date considered)"
+  OR "First SCOD of Generation Project"           → first_scod_of_generation_project
+- "Present Connectivity /deemed GNA"
+  OR "Connectivity granted (MW)"                  → connectivity_granted_mw
+- "Revised SCOD" / "Revised SCOD if applicable"
+  OR "Updated/Revised SCOD"                       → revised_scod
+- "Connectivity start date (In-principle)"
+  OR "Date of Connectivity Intimation (in-principle)" → date_of_connectivity_intimation_in_principle
+- "Application status (granted/agreed/withdrawn/revoked)" → application_status
+
+Table classification (read the bold heading above each table):
+- Contains "Financial Closure" → FCDeadlineTable → fill due_date_of_fc.
+- Contains "Land Document" or "Land Doc" → LandDocDeadlineTable
+  → fill due_date_for_submission_of_land_docs.
+
+Sub-table → table_name:
+- "Transition Cases"  → fc_deadline_transition_cases
+- "GNA Regulation"    → fc_deadline_gna_regulation
+- generic FC          → fc_deadline_main
+- Land Doc            → land_doc_deadline_main
+
+report_period from title "from X to Y YYYY" → "X YYYY - Y YYYY".
+Known typo: "Spet" = September.
 """.strip()
 
 
@@ -66,13 +79,6 @@ Follow the Pydantic output schema — its field names and descriptions are your 
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _extract_page_bundle(page: Any) -> str:
-    """
-    Build a text bundle for the LLM from a single pdfplumber page.
-
-    Two sections:
-      === PAGE TEXT ===          raw text  (for heading/title detection)
-      === TABLE N (cells) ===   tab-separated cell matrix (for data rows)
-    """
     lines: list[str] = []
 
     raw_text = page.extract_text(x_tolerance=3, y_tolerance=3) or ""
@@ -117,8 +123,7 @@ def _extract_page_bundle(page: Any) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Excel serial → DD-MM-YYYY  (Python safety net)
-# Applied after every agent call in case any integer slips through.
+# Excel serial → DD-MM-YYYY safety net (applied after every agent call)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SERIAL_RE = re.compile(r"^\d{5}$")
@@ -126,7 +131,6 @@ _EPOCH = datetime.date(1899, 12, 30)
 
 _DATE_FIELDS: frozenset[str] = frozenset({
     "submission_date",
-    "scod_as_per_application",
     "first_scod_of_generation_project",
     "revised_scod",
     "date_of_connectivity_intimation_in_principle",
@@ -183,19 +187,12 @@ def extract_pdf_with_agent(
     pdf_path: Path,
     pages_per_chunk: int = 4,
 ) -> FileExtractionResult:
-    """
-    Extract all compliance tables from a CTUIL PDF using the LLM agent.
-
-    Args:
-        pdf_path:        Path to the PDF.
-        pages_per_chunk: Pages per LLM call (reduce to 2-3 on low-context VMs).
-    """
+    """Extract all compliance tables from a single CTUIL PDF."""
     agent = _get_agent()
     all_fc: list[FCDeadlineTable] = []
     all_land: list[LandDocDeadlineTable] = []
     period = "Unknown Period"
 
-    # Build page bundles with pdfplumber
     with pdfplumber.open(str(pdf_path)) as pdf:
         total = len(pdf.pages)
         logger.info("[%s]  %d page(s)", pdf_path.name, total)
@@ -207,7 +204,7 @@ def extract_pdf_with_agent(
                 parts.append(_extract_page_bundle(page))
             bundles.append("\n".join(parts))
 
-    logger.info("[%s]  %d chunk(s) → LLM", pdf_path.name, len(bundles))
+    logger.info("[%s]  %d chunk(s) -> LLM", pdf_path.name, len(bundles))
 
     for i, bundle in enumerate(bundles, 1):
         logger.info("[%s]  chunk %d/%d", pdf_path.name, i, len(bundles))
@@ -237,6 +234,9 @@ def extract_pdf_with_agent(
             all_land.append(tbl)
 
     tables = all_fc + all_land
-    logger.info("[%s]  %d table(s), %d row(s)", pdf_path.name, len(tables), sum(len(t.rows) for t in tables))
+    logger.info(
+        "[%s]  %d table(s), %d row(s)",
+        pdf_path.name, len(tables), sum(len(t.rows) for t in tables),
+    )
 
     return FileExtractionResult(report_period=period, source_file=pdf_path.name, tables=tables)

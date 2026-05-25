@@ -1,139 +1,131 @@
 """
 Canonical Pydantic models for CTUIL Compliance PDF table extraction.
-=====================================================================
 
-Two distinct table types exist across all three compliance PDFs:
+Two table types exist across all compliance PDFs:
+  FCDeadlineRow        → "Financial Closure" tables  (due_date_of_fc)
+  LandDocDeadlineRow   → "Land Document" tables      (due_date_for_submission_of_land_docs)
 
-  TABLE TYPE 1 → FCDeadlineRow / FCDeadlineTable
-  ─────────────────────────────────────────────────
-  Source: "List of Connectivity Grantees with Financial Closure document
-           Submission Deadlines from <PERIOD>"
-  Critical deadline column : due_date_of_fc
-
-  TABLE TYPE 2 → LandDocDeadlineRow / LandDocDeadlineTable
-  ──────────────────────────────────────────────────────────
-  Source: "List of Connectivity Grantees with Land Document Submission
-           Deadlines from <PERIOD>"
-  Critical deadline column : due_date_for_submission_of_land_docs
-
-Both types share a common base (_ComplianceRowBase) covering applicant,
-project, and connectivity fields.  All string fields are Optional[str]
-so the LLM can return null for blank / missing cells without validation errors.
-
-JSON key naming contract (snake_case, enforced by field names):
-  Every key in the output JSON is exactly the Python field name defined here.
-  The LLM is instructed to use these names — no aliases, no extras.
+Design decisions:
+  - sl_no is intentionally excluded (carries no analytical value).
+  - Column name variants across PDFs are normalised to one canonical field:
+      "SCOD as per application"         → first_scod_of_generation_project
+      "Present Connectivity/deemed GNA" → connectivity_granted_mw
+      "Updated/Revised SCOD"            → revised_scod
+  - All string fields are Optional[str] so blank cells → null without errors.
+  - Field descriptions list all PDF column header variants so Pydantic-AI
+    can instruct the LLM precisely via the injected schema.
 """
 
 from __future__ import annotations
 
 from typing import Literal, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Shared base — fields present in EVERY table type
+# Shared base
 # ─────────────────────────────────────────────────────────────────────────────
 
 class _ComplianceRowBase(BaseModel):
-    """Fields shared by every row across all CTUIL compliance tables."""
+    """Fields present in every row across all table types."""
 
-    # ── Meta (always first) ──────────────────────────────────────────────────
+    # populate_by_name=True lets both the canonical field name AND any alias
+    # work as input keys — critical because Pydantic-AI injects the schema
+    # using field names, while raw PDF headers may differ.
+    model_config = ConfigDict(populate_by_name=True)
+
     report_period: str = Field(
-        description=(
-            "Reporting period string derived from the PDF/table title. "
-            "Format: 'January 2026 - March 2026'. "
-            "ALWAYS populate this on every row — never leave blank."
-        )
-    )
-
-    # ── Applicant identity ───────────────────────────────────────────────────
-    sl_no: Optional[str] = Field(
-        default=None,
-        description="Serial number as printed in the left-most column of the table.",
+        description="Reporting period from the table title, e.g. 'January 2026 - March 2026'."
     )
     application_id: Optional[str] = Field(
         default=None,
-        description=(
-            "Unique connectivity application ID exactly as printed, "
-            "e.g. '2200000003' or '0230700013'. Do not truncate or reformat."
-        ),
+        description="Unique application ID exactly as printed, e.g. '2200000003'.",
     )
     name_of_applicant: Optional[str] = Field(
         default=None,
-        description=(
-            "Full legal name of the applicant company exactly as printed, "
-            "including abbreviations in parentheses."
-        ),
+        description="Full legal name of the applicant exactly as printed.",
     )
     submission_date: Optional[str] = Field(
         default=None,
         description=(
-            "Date the connectivity application was submitted. "
-            "Return as DD-MM-YYYY text. "
-            "If the source shows a 5-digit Excel serial integer (e.g. 45030), "
-            "convert it: serial 45030 → 31-01-2023. "
-            "Never return a bare integer."
+            "Date the application was submitted. Return as DD-MM-YYYY. "
+            "If the source shows a 5-digit Excel serial, convert it first."
         ),
     )
-
-    # ── Project details ──────────────────────────────────────────────────────
     region: Optional[str] = Field(
         default=None,
-        description="Regional grid acronym exactly as printed: NR, SR, ER, WR, NER.",
+        description="Regional grid acronym as printed: NR, SR, ER, WR, NER.",
     )
     location_of_project: Optional[str] = Field(
         default=None,
-        description=(
-            "Full location string as printed, including village, tehsil, "
-            "district, and state if given."
-        ),
+        description="Full location string as printed.",
     )
     type_of_project: Optional[str] = Field(
         default=None,
-        description="Project technology type exactly as printed: Solar, Wind, Hybrid, etc.",
+        description="Technology type as printed: Solar, Wind, Hybrid, etc.",
     )
     installed_capacity_mw: Optional[str] = Field(
         default=None,
-        description="Installed generation capacity in MW as a string, e.g. '300.00' or '1250'.",
+        description="Installed generation capacity in MW as a string, e.g. '300.00'.",
     )
     first_scod_of_generation_project: Optional[str] = Field(
         default=None,
+        validation_alias=AliasChoices(
+            "first_scod_of_generation_project",        # canonical (LLM output)
+            "SCOD as per application",                 # Transition Cases PDF header
+            "First SCOD of Generation Project",        # GNA / Land Doc PDF header
+        ),
         description=(
-            "Scheduled Commercial Operation Date (SCOD) of the generation project "
-            "as printed, e.g. '30-Apr-25' or '31-Dec-25'."
+            "Primary SCOD date as printed. "
+            "PDF column variants: 'SCOD as per application (First date considered)', "
+            "'First SCOD of Generation Project'."
         ),
     )
-
-    # ── Connectivity / GNA details ───────────────────────────────────────────
     connectivity_granted_mw: Optional[str] = Field(
         default=None,
-        description="Connectivity / GNA capacity granted in MW as a string.",
+        validation_alias=AliasChoices(
+            "connectivity_granted_mw",                 # canonical
+            "Connectivity granted (MW)",               # GNA & Land Doc PDF header
+            "Present Connectivity /deemed GNA",        # Transition Cases PDF header
+        ),
+        description=(
+            "Connectivity/GNA capacity in MW as a string. "
+            "PDF column variants: 'Connectivity granted (MW)', "
+            "'Present Connectivity /deemed GNA'."
+        ),
     )
     substation: Optional[str] = Field(
         default=None,
         description=(
-            "Name of the substation at which generation is connected / "
-            "connectivity is granted, e.g. 'KPS-3', 'Bikaner-III PS'."
+            "Substation name as printed. "
+            "PDF column: 'Substation at which generation connected / connectivity granted'."
         ),
     )
     date_of_connectivity_intimation_in_principle: Optional[str] = Field(
         default=None,
-        description="Date of in-principle connectivity intimation letter exactly as printed.",
+        description=(
+            "In-principle connectivity intimation date as printed. "
+            "PDF column variants: 'Date of Connectivity Intimation (in-principle)', "
+            "'Connectivity start date (In-principle)'."
+        ),
     )
     date_of_connectivity_intimation_final: Optional[str] = Field(
         default=None,
-        description="Date of final connectivity intimation letter exactly as printed.",
+        description="Final connectivity intimation date as printed.",
     )
     connectivity_gna_start_date_in_principle: Optional[str] = Field(
         default=None,
-        description="In-principle connectivity / GNA start date exactly as printed.",
+        description=(
+            "In-principle connectivity/GNA start date as printed. "
+            "PDF column: 'Connectivity start date (In-principle)' or "
+            "'Connectivity / GNA start Date (In-principle)'."
+        ),
     )
     connectivity_gna_start_date_firm: Optional[str] = Field(
         default=None,
         description=(
-            "Firm / confirmed connectivity or GNA start date exactly as printed. "
-            "This is the anchor date from which the FC/land-doc deadline is calculated."
+            "Firm connectivity/GNA start date as printed. "
+            "PDF column: 'Connectivity / GNA start Date (Firm)'."
         ),
     )
 
@@ -144,79 +136,75 @@ class _ComplianceRowBase(BaseModel):
 
 class FCDeadlineRow(_ComplianceRowBase):
     """
-    One data row from a Financial Closure (FC) Deadline table.
-
-    PDF table title pattern:
-      "List of Connectivity Grantees with Financial Closure document
-       Submission Deadlines from <PERIOD>"
-
-    Sub-table variants:
-      - Transition Cases  → extra fields: criterion_for_applying,
-                            scod_as_per_application, present_connectivity_deemed_gna
-      - GNA Regulation    → those extra fields will be null
-
-    The critical output column is due_date_of_fc (always last in JSON order).
+    One row from a Financial Closure Deadline table.
+    Sub-types: Transition Cases / GNA Regulation.
+    Critical column: due_date_of_fc (always last).
     """
 
-    # Transition-case-only fields (null in GNA-regulation sub-tables)
+    # Transition Cases only
     criterion_for_applying: Optional[str] = Field(
         default=None,
         description=(
-            "Original criterion under which the applicant applied, e.g. "
-            "'L&A', 'LOA or PPA'. Present only in Transition Cases sub-tables."
-        ),
-    )
-    scod_as_per_application: Optional[str] = Field(
-        default=None,
-        description=(
-            "SCOD as per the original application (the 'first date considered'). "
-            "Present only in Transition Cases sub-tables, e.g. '30-Apr-25'."
-        ),
-    )
-    present_connectivity_deemed_gna: Optional[str] = Field(
-        default=None,
-        description=(
-            "Present connectivity capacity (MW) or deemed GNA value as printed. "
+            "Original criterion under which applicant applied. "
+            "PDF column: 'Criterion for applying'. "
             "Present only in Transition Cases sub-tables."
         ),
     )
 
-    # Fields present in both sub-table types
+    # GNA Regulation + sometimes Transition Cases
     revised_criterion: Optional[str] = Field(
         default=None,
         description=(
-            "Revised compliance criterion after regulation update, e.g. "
-            "'Land Route', 'Land BG Route', 'Land BG + PPA', 'LOA or PPA'."
+            "Revised compliance criterion, e.g. 'Land Route', 'LOA or PPA'. "
+            "PDF column: 'Revised Criterion'."
         ),
     )
     revised_scod: Optional[str] = Field(
         default=None,
-        description="Revised SCOD date if the SCOD was updated, exactly as printed.",
+        validation_alias=AliasChoices(
+            "revised_scod",                    # canonical
+            "Revised SCOD",                    # standard PDF header
+            "Revised SCOD if applicable",      # June-Aug 2025 GNA variant
+            "Updated/Revised SCOD",            # June-Aug 2025 Transition variant
+        ),
+        description=(
+            "Revised SCOD if updated, exactly as printed. "
+            "PDF variants: 'Revised SCOD', 'Revised SCOD if applicable', "
+            "'Updated/Revised SCOD'."
+        ),
     )
 
-    # PRIMARY DEADLINE — always the last field, always populated in FC tables
+    # June-Aug 2025 Transition Cases only
+    application_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "Application status as printed. "
+            "PDF column: 'Application status (granted/agreed/withdrawn/revoked)'. "
+            "Present only in June-Aug 2025 Transition Cases."
+        ),
+    )
+
+    # PRIMARY DEADLINE
     due_date_of_fc: Optional[str] = Field(
         default=None,
         description=(
-            "Due date for submission of Financial Closure documents, "
-            "exactly as printed (e.g. '22-Feb-26'). "
-            "This is the critical deadline. Do NOT confuse with land docs deadline."
+            "Due date for Financial Closure document submission, exactly as printed. "
+            "PDF column: 'Due date of FC'. "
+            "This is the critical deadline for FC tables."
         ),
     )
 
 
 class FCDeadlineTable(BaseModel):
-    """Structured container for one Financial Closure Deadline sub-table."""
-
     table_type: Literal["fc_deadline"] = "fc_deadline"
     table_name: str = Field(
         description=(
-            "Snake_case identifier derived from the PDF sub-table heading. "
-            "Examples: 'fc_deadline_transition_cases', 'fc_deadline_gna_regulation'."
+            "Snake_case name from the PDF sub-heading: "
+            "'fc_deadline_transition_cases', 'fc_deadline_gna_regulation', 'fc_deadline_main'."
         )
     )
     rows: list[FCDeadlineRow] = Field(
-        description="All data rows extracted from this sub-table. Never skip any row."
+        description="All data rows. Never skip any row."
     )
 
 
@@ -226,95 +214,59 @@ class FCDeadlineTable(BaseModel):
 
 class LandDocDeadlineRow(_ComplianceRowBase):
     """
-    One data row from a Land Document Submission Deadline table.
-
-    PDF table title pattern:
-      "List of Connectivity Grantees with Land Document Submission
-       Deadlines from <PERIOD>"
-
-    The critical output column is due_date_for_submission_of_land_docs
-    (always last in JSON order).
+    One row from a Land Document Submission Deadline table.
+    Critical column: due_date_for_submission_of_land_docs (always last).
     """
 
-    revised_criterion: Optional[str] = Field(
-        default=None,
-        description=(
-            "Revised compliance criterion after regulation update, e.g. "
-            "'Land Route', 'Land BG Route', 'LOA or PPA'."
-        ),
-    )
-    revised_scod: Optional[str] = Field(
-        default=None,
-        description="Revised SCOD date if updated, exactly as printed.",
-    )
-
-    # PRIMARY DEADLINE — always the last field, always populated in land-doc tables
+    # PRIMARY DEADLINE
     due_date_for_submission_of_land_docs: Optional[str] = Field(
         default=None,
         description=(
-            "Due date for submission of Land documents, exactly as printed. "
-            "This is the critical deadline. Do NOT confuse with FC deadline."
+            "Due date for Land document submission, exactly as printed. "
+            "PDF column: 'Due date for submission of land docs'. "
+            "This is the critical deadline for Land Doc tables."
         ),
     )
 
 
 class LandDocDeadlineTable(BaseModel):
-    """Structured container for one Land Document Submission Deadline sub-table."""
-
     table_type: Literal["land_doc_deadline"] = "land_doc_deadline"
     table_name: str = Field(
-        description=(
-            "Snake_case identifier derived from the PDF sub-table heading. "
-            "Example: 'land_doc_deadline_main'."
-        )
+        description="Snake_case name: 'land_doc_deadline_main'."
     )
     rows: list[LandDocDeadlineRow] = Field(
-        description="All data rows extracted from this sub-table. Never skip any row."
+        description="All data rows. Never skip any row."
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LLM agent output wrapper — per page-chunk call
+# LLM agent output — per page-chunk call
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PageExtractionResult(BaseModel):
-    """
-    Structured output returned by the LLM agent for one PDF page-chunk call.
-
-    The agent must classify every table it finds as either FCDeadlineTable
-    or LandDocDeadlineTable, never mix fields between the two types.
-    """
+    """Structured output for one PDF page-chunk LLM call."""
 
     report_period: str = Field(
         description=(
-            "Report period detected from the table title(s) on this page-chunk. "
-            "Format: 'January 2026 - March 2026'. "
-            "Return 'Unknown Period' only if genuinely absent from all titles."
+            "Period from the table title, format 'Month YYYY - Month YYYY'. "
+            "Return 'Unknown Period' only if genuinely absent."
         )
     )
     fc_tables: list[FCDeadlineTable] = Field(
         default_factory=list,
-        description=(
-            "All Financial Closure Deadline tables found in this page-chunk. "
-            "Empty list if none present."
-        ),
+        description="All Financial Closure tables in this chunk. Empty list if none.",
     )
     land_doc_tables: list[LandDocDeadlineTable] = Field(
         default_factory=list,
-        description=(
-            "All Land Document Submission Deadline tables found in this page-chunk. "
-            "Empty list if none present."
-        ),
+        description="All Land Document tables in this chunk. Empty list if none.",
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Final file-level output wrapper
+# File-level result
 # ─────────────────────────────────────────────────────────────────────────────
 
 class FileExtractionResult(BaseModel):
-    """Aggregated extraction result for a single PDF file."""
-
     report_period: str
     source_file: str
     tables: list[Union[FCDeadlineTable, LandDocDeadlineTable]] = Field(
