@@ -36,42 +36,19 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """
-Extract every table row from the PDF exactly as printed.
-The Pydantic output schema defines all field names — follow it precisely.
+You are a data extraction agent for CTUIL compliance PDF reports.
+Extract every row from every table. The output schema (injected separately) is
+the complete specification — read each field's description carefully.
 
-Rules:
-- Every row must be extracted. Never skip, summarise, or infer.
-- Blank / dash / empty cell → null.
-- Multi-line cell → join with one space.
-- 5-digit integer in a date field = Excel serial → convert to DD-MM-YYYY
-  (formula: 1899-12-30 + serial days). Never return a raw integer.
-- Skip the "Sl. No" / serial-number column entirely — it is not in the schema.
-
-Column name normalisation (different PDFs use different headers for the same data):
-- "SCOD as per application (First date considered)"
-  OR "First SCOD of Generation Project"           → first_scod_of_generation_project
-- "Present Connectivity /deemed GNA"
-  OR "Connectivity granted (MW)"                  → connectivity_granted_mw
-- "Revised SCOD" / "Revised SCOD if applicable"
-  OR "Updated/Revised SCOD"                       → revised_scod
-- "Connectivity start date (In-principle)"
-  OR "Date of Connectivity Intimation (in-principle)" → date_of_connectivity_intimation_in_principle
-- "Application status (granted/agreed/withdrawn/revoked)" → application_status
-
-Table classification (read the bold heading above each table):
-- Contains "Financial Closure" → FCDeadlineTable → fill due_date_of_fc.
-- Contains "Land Document" or "Land Doc" → LandDocDeadlineTable
-  → fill due_date_for_submission_of_land_docs.
-
-Sub-table → table_name:
-- "Transition Cases"  → fc_deadline_transition_cases
-- "GNA Regulation"    → fc_deadline_gna_regulation
-- generic FC          → fc_deadline_main
-- Land Doc            → land_doc_deadline_main
-
-report_period from title "from X to Y YYYY" → "X YYYY - Y YYYY".
-Known typo: "Spet" = September.
+Extraction rules (not repeated in the schema):
+1. Never skip a row, even if incomplete.
+2. Blank / dash / empty cell → null.
+3. Multi-line cell → join with a single space.
+4. 5-digit integer in any date field = Excel serial → convert to DD-MM-YYYY
+   using: date = 1899-12-30 + <serial> days.
+5. The serial-number column ("Sl. No") is not in the schema — skip it.
 """.strip()
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

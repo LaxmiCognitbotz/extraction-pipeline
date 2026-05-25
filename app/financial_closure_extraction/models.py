@@ -56,9 +56,22 @@ class _ComplianceRowBase(BaseModel):
         default=None,
         description="Regional grid acronym as printed: NR, SR, ER, WR, NER.",
     )
-    location_of_project: Optional[str] = Field(
+    state: Optional[str] = Field(
         default=None,
-        description="Full location string as printed.",
+        description=(
+            "Indian state name only, extracted from the Location of Project column. "
+            "Examples: 'Rajasthan', 'Gujarat', 'Tamil Nadu', 'Madhya Pradesh'. "
+            "If the location string contains only a state name, put it here. "
+            "Never include district/village/tehsil here — those go in project_location_details."
+        ),
+    )
+    project_location_details: Optional[str] = Field(
+        default=None,
+        description=(
+            "Location details excluding the state name: village, tehsil, district, taluka etc. "
+            "Examples: 'Village Ramgarh, Dist. Bikaner', 'Dist. Jaisalmer', 'Taluka Bhuj'. "
+            "If the PDF only shows a state name with no other detail, return null here."
+        ),
     )
     type_of_project: Optional[str] = Field(
         default=None,
@@ -66,7 +79,12 @@ class _ComplianceRowBase(BaseModel):
     )
     installed_capacity_mw: Optional[str] = Field(
         default=None,
-        description="Installed generation capacity in MW as a string, e.g. '300.00'.",
+        description=(
+            "The GENERATION capacity of the project in MW, e.g. '300.00', '36.00', '600'. "
+            "This is the PLANT size — typically in the 'Installed capacity (MW)' column. "
+            "Do NOT confuse with 'Connectivity Granted (MW)' which is a NETWORK allocation. "
+            "They may differ — extract each from its own column, never copy one into the other."
+        ),
     )
     first_scod_of_generation_project: Optional[str] = Field(
         default=None,

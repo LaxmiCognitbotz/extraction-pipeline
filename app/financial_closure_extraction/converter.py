@@ -44,14 +44,15 @@ _DEADLINE_FONT  = Font(bold=True, name="Calibri", size=10, color="7B3F00")
 
 # ── Canonical column order ────────────────────────────────────────────────────
 # Metadata first, then all data fields, deadlines always last.
-_META_COLS = ["source_file", "report_period", "table_type", "table_name"]
+_META_COLS = ["source_file", "report_period"]
 
 _DATA_COLS = [
     "application_id",
     "name_of_applicant",
     "submission_date",
     "region",
-    "location_of_project",
+    "state",
+    "project_location_details",
     "type_of_project",
     "installed_capacity_mw",
     "first_scod_of_generation_project",
@@ -79,13 +80,12 @@ ALL_COLUMNS = _META_COLS + _DATA_COLS + _DEADLINE_COLS
 _HEADER_LABELS = {
     "source_file":                                      "Source File",
     "report_period":                                    "Report Period",
-    "table_type":                                       "Table Type",
-    "table_name":                                       "Table Name",
     "application_id":                                   "Application ID",
     "name_of_applicant":                                "Name of Applicant",
     "submission_date":                                  "Submission Date",
     "region":                                           "Region",
-    "location_of_project":                              "Location of Project",
+    "state":                                            "State",
+    "project_location_details":                         "Project Location Details",
     "type_of_project":                                  "Type of Project",
     "installed_capacity_mw":                            "Installed Capacity (MW)",
     "first_scod_of_generation_project":                 "First SCOD of Generation Project",
