@@ -27,7 +27,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from app.financial_closure_exytraction.models import (
+from app.financial_closure_extraction.models import (
     FCDeadlineTable,
     FileExtractionResult,
     LandDocDeadlineTable,
