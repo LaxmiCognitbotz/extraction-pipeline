@@ -27,37 +27,40 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT_NON_RE = """
 You are a data extraction agent for CTUIL Non-RE Substations Margin PDF reports.
-Extract every substation row from the table cells provided. 
+Extract every substation row by reading BOTH the "=== PAGE TEXT ===" and the "=== TABLE ===" sections.
 
 Rules:
-1. Carry the State header forward. For example, if a row contains only a state name like "Gujarat" or "Maharashtra", remember it and set it as the `state` field for every substation row that follows, until a new state header appears.
-2. Never skip any substation rows.
-3. Blank cells, dashes, or cells containing only spaces should be returned as null.
-4. Extract the station name, capacity, allocations, margins, and bays required exactly as printed.
+1. The "=== PAGE TEXT ===" is your primary source of truth and contains the full text lines for each row. Use it to recover values if the "=== TABLE ===" has empty, missing, or null cells.
+2. Carry the State header forward. For example, if a row contains only a state name like "Gujarat" or "Maharashtra", remember it and set it as the `state` field for every substation row that follows, until a new state header appears.
+3. Never skip any substation rows.
+4. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
+5. Extract the station name, capacity, allocations, margins, and bays required exactly as printed.
 """.strip()
 
 SYSTEM_PROMPT_PROPOSED_RE = """
 You are a data extraction agent for CTUIL Proposed RE Substations Margin PDF reports (older reports).
 These reports are typically titled: "Status of margins available at existing ISTS substations (non RE) for proposed RE integration".
-Extract every substation row from the table cells provided.
+Extract every substation row by reading BOTH the "=== PAGE TEXT ===" and the "=== TABLE ===" sections.
 
 Rules:
-1. Carry the State header forward. If a row contains only a state name (e.g., 'Gujarat', 'Maharashtra'), remember it and set it as the `state` field for all subsequent substation rows, until a new state header appears.
-2. Never skip any substation rows.
-3. Blank cells, dashes, or cells containing only spaces should be returned as null.
-4. Carefully extract the Existing, Under Implementation, and Planned transformation capacities (both 765/400kV and 400/220kV levels) from their respective columns.
+1. The "=== PAGE TEXT ===" is your primary source of truth and contains the full text lines for each row. Use it to recover values if the "=== TABLE ===" has empty, missing, or null cells.
+2. Carry the State header forward. If a row contains only a state name (e.g., 'Gujarat', 'Maharashtra'), remember it and set it as the `state` field for all subsequent substation rows, until a new state header appears.
+3. Never skip any substation rows.
+4. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
+5. Carefully extract the Existing, Under Implementation, and Planned transformation capacities (both 765/400kV and 400/220kV levels) from their respective columns.
 """.strip()
 
 SYSTEM_PROMPT_RE = """
 You are a data extraction agent for CTUIL RE Substations Margin PDF reports.
-Extract every pooling station row from the table cells provided.
+Extract every pooling station row by reading BOTH the "=== PAGE TEXT ===" and the "=== TABLE ===" sections.
 
 Rules:
-1. Carry the Region header forward. If a row starts with a region like 'Northern Region', 'Western Region', etc., remember it and set it as the `region` field for all subsequent pooling station rows until a new region appears.
-2. Carry the Category header forward. If a row contains section headers like 'A. Existing RE Pooling Stations', 'B. Under Implementation RE Pooling Stations', etc., remember it and set it as the `category` field for all subsequent rows until a new category header appears.
-3. Never skip any pooling station rows.
-4. Extract pooling station names, states, RE potentials, BESS capacities, connectivity parameters, margins, and GNA effectiveness exactly as printed.
-5. Return null for blank/dash/space cells.
+1. The "=== PAGE TEXT ===" is your primary source of truth and contains the full text lines for each row. Use it to recover values if the "=== TABLE ===" has empty, missing, or null cells.
+2. Carry the Region header forward. If a row starts with a region like 'Northern Region', 'Western Region', etc., remember it and set it as the `region` field for all subsequent pooling station rows until a new region appears.
+3. Carry the Category header forward. If a row contains section headers like 'A. Existing RE Pooling Stations', 'B. Under Implementation RE Pooling Stations', etc., remember it and set it as the `category` field for all subsequent rows until a new category header appears.
+4. Never skip any pooling station rows.
+5. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
+6. Extract pooling station names, states, RE potentials, BESS capacities, connectivity parameters, margins, and GNA effectiveness exactly as printed.
 """.strip()
 
 
