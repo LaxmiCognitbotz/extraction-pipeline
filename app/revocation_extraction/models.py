@@ -1,18 +1,9 @@
 """
 Pydantic models for CTUIL Revocation (24.6) PDF extraction.
 
-Column names differ significantly across PDFs, so only the universally
-special-handled fields have dedicated model fields. All remaining PDF
-columns are captured verbatim in `row_data` with their exact header names.
-
-Special handling:
-  application_id  : Connectivity Application ID only (no LTA text)
-  lta_id          : LTA Application ID(s) if present — parsed from the
-                    Application ID cell (newer PDFs) or Applicant Name
-                    cell (older PDFs). Multiple LTA IDs → joined with ' | '.
-  applicant_name  : Clean applicant name only (no LTA/Connectivity lines).
-
-Everything else goes into row_data with the EXACT PDF column header as key.
+In Pydantic AI the field `description` IS the instruction sent to the LLM
+as part of the JSON schema. All column-mapping context lives here so the
+system prompt can remain short behavioral rules only.
 """
 
 from __future__ import annotations
@@ -22,7 +13,7 @@ from pydantic import BaseModel, Field
 
 
 class RevocationRecord(BaseModel):
-    """One row from a CTUIL 24.6 Revocation table."""
+    """One data row from a CTUIL 24.6 Expected Revocation table."""
 
     source_file: str = Field(
         description="PDF filename this record was extracted from."
@@ -35,46 +26,142 @@ class RevocationRecord(BaseModel):
             "Look for 'upto Mon\\'YY' or 'Final list Mon\\'YY' in the title."
         ),
     )
+
+    # ── 14 core columns present in all 9 PDF vintages ─────────────────────────
+
     application_id: Optional[str] = Field(
         default=None,
         description=(
-            "The Connectivity Application ID — numeric ID only, e.g. '1200003331', '0331400007'. "
-            "In newer PDFs the Application ID cell may contain BOTH connectivity and LTA IDs — "
-            "extract only the main connectivity app number here. "
-            "In older PDFs the Application ID cell is clean — copy as-is. "
-            "Never put LTA IDs here."
+            "The main Connectivity Application ID — numeric ID only, e.g. '1200003331', '0331400007'. "
+            "PDF header is simply 'Application ID'. "
+            "In newer PDFs the cell may contain BOTH connectivity and LTA IDs — "
+            "extract only the main connectivity ID here. Never put LTA IDs here."
         ),
     )
     lta_id: Optional[str] = Field(
         default=None,
         description=(
-            "LTA Application ID(s) if present. "
-            "Found in two places depending on the PDF version: "
-            "(1) Newer PDFs: embedded in the Application ID cell after 'LTA:' keyword, "
-            "    e.g. 'St-II: 312100010 ... LTA: 0412100011(65 MW)' → '0412100011 (65 MW)'. "
-            "(2) Older PDFs: on a line below the applicant name starting with 'LTA:' "
-            "    e.g. 'LTA: 1200003326 (100MW) & 1200003327 (500MW)' → '1200003326 (100MW) & 1200003327 (500MW)'. "
-            "If multiple LTA IDs, join them with ' | '. "
-            "Return null if no LTA ID found."
+            "LTA Application ID(s) if present. Two locations depending on PDF version: "
+            "(1) Newer PDFs: embedded in the Application ID cell after 'LTA:' keyword. "
+            "(2) Older PDFs: on a line below the applicant name starting with 'LTA:'. "
+            "If multiple LTA IDs, join with ' | '. Return null if no LTA ID found."
         ),
     )
     applicant_name: Optional[str] = Field(
         default=None,
         description=(
-            "Clean legal name of the applicant only. "
+            "Clean legal name of the applicant only. PDF header is 'Name of Applicant'. "
             "Strip any lines beginning with 'LTA:', 'Connectivity:', 'St-II:' etc. "
-            "from the name cell — those go in lta_id or application_id."
+            "Those go into lta_id or application_id respectively."
         ),
     )
-    row_data: dict[str, Optional[str]] = Field(
-        default_factory=dict,
+    region: Optional[str] = Field(
+        default=None,
         description=(
-            "All remaining columns from the PDF row, keyed by their EXACT column header "
-            "(multi-line headers joined with a single space). "
-            "Do NOT include sl_no / Sr. No., application_id, applicant_name columns here "
-            "— those are captured above. Include everything else."
+            "Region code. PDF header is 'Region'. "
+            "Values: WR, NR, SR, ER, NER."
         ),
     )
+    criterion: Optional[str] = Field(
+        default=None,
+        description=(
+            "Criterion for applying. PDF header is 'Criterion for applying'. "
+            "Values: 'L&FC', 'LoA or PPA', 'PPA', etc."
+        ),
+    )
+    type_of_project: Optional[str] = Field(
+        default=None,
+        description=(
+            "Type of project. PDF header is 'Type of Project'. "
+            "Values: Solar, Wind, Hybrid, etc."
+        ),
+    )
+    present_connectivity_deemed_gna: Optional[str] = Field(
+        default=None,
+        description=(
+            "Present connectivity / deemed GNA quantum in MW. "
+            "PDF header varies: 'Present Connectivity/deemed GNA', "
+            "'Present Maximum Connectivity/deemed GNA', 'Present Connectivity /deemed GNA'. "
+            "Extract the numeric MW value as a string."
+        ),
+    )
+    substation: Optional[str] = Field(
+        default=None,
+        description=(
+            "Name of the substation. "
+            "PDF header varies: 'Substation at which generation connected/connectivity granted', "
+            "'Substation at which generation connected/ connectivity granted'. "
+            "Extract the substation name exactly as printed."
+        ),
+    )
+    connectivity_gna_start_date_firm: Optional[str] = Field(
+        default=None,
+        description=(
+            "Connectivity / GNA start date (firm date). "
+            "PDF header varies: 'Connectivity / GNA start Date (Firm)', "
+            "'Connectivity / GNA start Date (firm)', 'Connectivity/GNA start Date (Firm)'. "
+            "Extract the date as printed."
+        ),
+    )
+    connectivity_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "Status of the connectivity / GNA. "
+            "PDF header varies: 'Status (Effective/Part effective/To be made effective)', "
+            "'Status (Effective/Part effective/To be made effective)'. "
+            "Common values: 'Effective', 'Part Effective', 'Not Effective', 'To be made effective'."
+        ),
+    )
+    date_connectivity_gna_made_effective: Optional[str] = Field(
+        default=None,
+        description=(
+            "Expected or actual date of connectivity / GNA made effective. "
+            "PDF header varies: "
+            "'Expected date of connectivity/ GNA made effective/to be made effective', "
+            "'*Expected date of connectivity/ GNA to be made effective', "
+            "'Expected date of connectivity/GNA made effective/to be made effective'. "
+            "Extract the date as printed. Return null only if genuinely not present."
+        ),
+    )
+    generation_commissioning_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "Generation commissioning status. "
+            "PDF header varies: 'Generation commissioning status', "
+            "'Ggeneration Schedule status (MW)' (note the double-g typo in some PDFs). "
+            "Common values: 'Not commissioned', 'Part commissioned', 'Commissioned'. "
+            "Some older PDFs store the commissioned MW quantum here — extract as printed."
+        ),
+    )
+    scod_as_per_application: Optional[str] = Field(
+        default=None,
+        description=(
+            "SCOD as per the original application (first date considered). "
+            "PDF header varies: 'SCOD as per application (First date considered)', "
+            "'SCOD as per application (First date considered)'. "
+            "Extract the date as printed."
+        ),
+    )
+    updated_revised_scod: Optional[str] = Field(
+        default=None,
+        description=(
+            "Updated or revised SCOD date. "
+            "PDF header varies: 'Updated/Revised SCOD', 'Updated/ Revised SCOD'. "
+            "May contain a date, 'NA', or 'No' — extract exactly as printed."
+        ),
+    )
+    compliance_due_date: Optional[str] = Field(
+        default=None,
+        description=(
+            "Due date for compliance of Regulation 24.6. "
+            "PDF header varies: '24.6 GNA Compliance due date', "
+            "'Due date for compliance of 24.6', '*Due date as per compliance of 24.6'. "
+            "Extract the date as printed."
+        ),
+    )
+
+    class Config:
+        populate_by_name = True
 
 
 class PageExtractionResult(BaseModel):

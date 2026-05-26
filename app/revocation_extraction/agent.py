@@ -1,5 +1,6 @@
 """
 Pydantic-AI agent for CTUIL Revocation (24.6) PDF extraction.
+Extracts the 14 core columns that are common across all 9 PDF vintages.
 """
 
 from __future__ import annotations
@@ -20,35 +21,19 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """
 You are a data extraction agent for CTUIL Revocation (Regulation 24.6) PDF reports.
-Extract every row from the table. The output schema is the complete specification.
+Extract every row from the table. The output schema fields and their descriptions
+are your complete specification — follow them exactly.
 
-Extraction rules:
-1. Never skip a row, even if incomplete.
-2. Blank / dash / "-" cell → null.
-3. Multi-line header → join words with a single space for the key in row_data.
-4. Do NOT include the serial number (Sl. No. / Sr. No.) in row_data or anywhere.
-
-Application ID parsing (CRITICAL):
-  The Application ID cell may contain BOTH the connectivity ID AND an LTA ID.
-
-  Pattern A — older PDFs, Application ID cell is clean:
-    Cell: "1200003331"  → application_id="1200003331"
-    LTA info appears below the name in the Applicant Name cell:
-      "Gujarat State Electricity Corporation Limited
-       LTA: 1200003326 (100MW) & 1200003327 (500MW)"
-    → applicant_name="Gujarat State Electricity Corporation Limited"
-    → lta_id="1200003326 (100MW) & 1200003327 (500MW)"
-
-  Pattern B — newer PDFs, Application ID cell contains multiple IDs:
-    Cell: "St-II: 312100010 (45 MW) (5 out of 45 MW), 312100012 (60 MW) LTA: 0412100011(65 MW)"
-    → application_id="312100010, 312100012"
-    → lta_id="0412100011 (65 MW)"
-
-  If no LTA ID is present → lta_id=null.
-  Always strip LTA/Connectivity lines from applicant_name.
-
-row_data keys: use the EXACT column header text (multi-line joined with space).
-Do not include: Sl. No., Application ID, Applicant Name columns in row_data.
+Behavioral Rules:
+1. Read BOTH "=== PAGE TEXT ===" and "=== TABLE ===" sections.
+   The page text is the primary source of truth — use it to recover values
+   that are blank or missing in the table cells.
+2. Never skip a row, even if some columns are empty.
+3. If a cell contains "0" (zero), extract it exactly as "0". Do NOT convert 0 to null.
+4. Only blank cells, dashes "-", or cells with only spaces should be null.
+5. Do NOT include the serial number (Sl. No. / Sr. No.) in any field.
+6. Do NOT invent, guess, or estimate values. Extract only what is literally printed.
+7. Never copy values from one row into another row incorrectly.
 """.strip()
 
 

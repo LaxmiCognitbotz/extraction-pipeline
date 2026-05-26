@@ -8,24 +8,36 @@ Entry point:
     python -m app.revocation_extraction.run_revocation_extraction \\
         --file "07_Revocation upto oct25.pdf"
 
-    # All files:
+    # Limit to N most recent PDFs:
+    python -m app.revocation_extraction.run_revocation_extraction --limit 3
+
+    # All files (default):
     python -m app.revocation_extraction.run_revocation_extraction
 
 Outputs:
     outputs/Revocations-24.6/revocations_extracted.json
     outputs/Revocations-24.6/revocations_extracted.xlsx
 
-JSON structure — flat list, one entry per row:
+JSON structure — flat list, one entry per row, with all 14 core columns:
 [
   {
-    "Source File": "07_Revocation upto oct25.pdf",
-    "Upto Month": "Oct'25",
+    "Source File": "01_Final list Jul'26.pdf",
+    "Upto Month": "Jul'26",
     "Application ID": "1200003331",
     "LTA ID": "1200003326 (100MW) & 1200003327 (500MW)",
     "Applicant Name": "Gujarat State Electricity Corporation Limited",
     "Region": "WR",
-    "Criterion for applying": "L&FC",
-    ... (all other columns with exact PDF header names)
+    "Criterion": "L&FC",
+    "Type of Project": "Solar",
+    "Present Connectivity / deemed GNA (MW)": "600",
+    "Substation": "KPS-2",
+    "Connectivity / GNA Start Date (Firm)": "30/11/2023",
+    "Connectivity Status": "Not Effective",
+    "Date Connectivity / GNA Made Effective": "31-Jul-26",
+    "Generation Commissioning Status": "Not commissioned",
+    "SCOD as per Application": "30-Jun-23",
+    "Updated / Revised SCOD": "NA",
+    "24.6 Compliance Due Date": "31-Jul-26"
   }
 ]
 """
@@ -42,10 +54,10 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     datefmt="%H:%M:%S",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("revocation_pipeline")
 
 from app.revocation_extraction.agent import extract_pdf_with_agent
-from app.revocation_extraction.converter import records_to_excel
+from app.revocation_extraction.converter import records_to_excel, _COLUMNS
 from app.revocation_extraction.models import RevocationRecord
 
 
@@ -55,27 +67,16 @@ OUTPUT_DIR     = Path("outputs/Revocations-24.6")
 JSON_OUT_FILE  = OUTPUT_DIR / "revocations_extracted.json"
 EXCEL_OUT_FILE = OUTPUT_DIR / "revocations_extracted.xlsx"
 
-# Fixed field → human-readable label for JSON output
-_FIXED_KEY = {
-    "source_file":    "Source File",
-    "upto_month":     "Upto Month",
-    "application_id": "Application ID",
-    "lta_id":         "LTA ID",
-    "applicant_name": "Applicant Name",
-}
+# Build label map from converter column definitions
+_FIELD_TO_LABEL = {field: label for field, label, _ in _COLUMNS}
 
 
 def _to_json(records: list[RevocationRecord]) -> list[dict]:
-    """
-    Flat list — one entry per record.
-    Fixed fields first (human-readable labels), then all row_data keys as-is.
-    """
+    """Flat list — one entry per record using human-readable column labels."""
     result = []
     for rec in records:
         d = rec.model_dump()
-        row_data: dict = d.get("row_data") or {}
-        entry = {_FIXED_KEY[k]: d[k] for k in _FIXED_KEY}
-        entry.update(row_data)   # adds all PDF column headers verbatim
+        entry = {_FIELD_TO_LABEL[field]: d.get(field) for field, _, _ in _COLUMNS}
         result.append(entry)
     return result
 
@@ -139,12 +140,18 @@ def _process_files(
     return all_records
 
 
-def run_pipeline(pages_per_chunk: int = 3) -> None:
-    pdf_files = list(PDF_INPUT_DIR.glob("*.pdf"))
+def run_pipeline(
+    pages_per_chunk: int = 3,
+    limit: int | None = None,
+) -> None:
+    pdf_files = sorted(PDF_INPUT_DIR.glob("*.pdf"))
     if not pdf_files:
         logger.error("No PDFs found in: %s", PDF_INPUT_DIR.resolve())
         sys.exit(1)
     logger.info("Found %d PDF file(s)", len(pdf_files))
+    if limit is not None:
+        pdf_files = pdf_files[:limit]
+        logger.info("Limiting to most recent %d PDF(s)", limit)
     _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk)
 
 
@@ -160,11 +167,24 @@ if __name__ == "__main__":
         help="Single PDF filename inside the input directory.",
     )
     parser.add_argument(
+        "--limit", "-l",
+        type=str, default="all",
+        help="Number of most-recent PDFs to process. Default: all.",
+    )
+    parser.add_argument(
         "--pages-per-chunk", "-p",
         type=int, default=3,
         help="Pages per LLM call (default: 3).",
     )
     args = parser.parse_args()
+
+    limit_val: int | None = None
+    if args.limit.lower() != "all":
+        try:
+            limit_val = int(args.limit)
+        except ValueError:
+            logger.error("Invalid limit '%s'. Must be an integer or 'all'.", args.limit)
+            sys.exit(1)
 
     if args.file:
         pdf_path = PDF_INPUT_DIR / args.file
@@ -173,4 +193,4 @@ if __name__ == "__main__":
             sys.exit(1)
         _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk)
     else:
-        run_pipeline(pages_per_chunk=args.pages_per_chunk)
+        run_pipeline(pages_per_chunk=args.pages_per_chunk, limit=limit_val)
