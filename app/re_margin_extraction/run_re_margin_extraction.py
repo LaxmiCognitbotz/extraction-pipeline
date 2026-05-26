@@ -274,8 +274,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--limit", "-l",
         type=str,
-        default="1",
-        help="Number of PDFs to extract from the selected subfolder(s) (most recent first). Set to 'all' for everything. Default is 1."
+        default="all",
+        help="Number of PDFs to extract from the selected subfolder(s) (most recent first). Set to 'all' for everything. Default is 'all'."
     )
     parser.add_argument(
         "--pages-per-chunk", "-p",
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Parse limit argument
-    limit_val = None
+    limit_val = None  # None means extract ALL PDFs
     if args.limit.lower() != "all":
         try:
             limit_val = int(args.limit)

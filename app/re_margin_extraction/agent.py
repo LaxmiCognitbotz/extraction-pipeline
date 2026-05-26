@@ -35,6 +35,12 @@ Rules:
 3. Never skip any substation rows.
 4. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
 5. Extract the station name, capacity, allocations, margins, and bays required exactly as printed.
+
+Critical Anti-Hallucination Rules:
+- ONLY extract values that are explicitly present in the provided text. Do NOT invent, guess, or estimate any value.
+- If a value is genuinely not present or cannot be found in either the page text or table, return null. Never fill in a number that is not printed.
+- Do NOT copy values from one row to another incorrectly. Each substation row is independent.
+- Never extrapolate or infer numeric values. Extract only what is literally printed.
 """.strip()
 
 SYSTEM_PROMPT_PROPOSED_RE = """
@@ -48,6 +54,12 @@ Rules:
 3. Never skip any substation rows.
 4. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
 5. Carefully extract the Existing, Under Implementation, and Planned transformation capacities (both 765/400kV and 400/220kV levels) from their respective columns.
+
+Critical Anti-Hallucination Rules:
+- ONLY extract values that are explicitly present in the provided text. Do NOT invent, guess, or estimate any value.
+- If a value is genuinely not present or cannot be found in either the page text or table, return null. Never fill in a number that is not printed.
+- Do NOT copy values from one row to another incorrectly. Each substation row is independent.
+- Never extrapolate or infer numeric values. Extract only what is literally printed.
 """.strip()
 
 SYSTEM_PROMPT_RE = """
@@ -61,6 +73,12 @@ Rules:
 4. Never skip any pooling station rows.
 5. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
 6. Extract pooling station names, states, RE potentials, BESS capacities, connectivity parameters, margins, and GNA effectiveness exactly as printed.
+
+Critical Anti-Hallucination Rules:
+- ONLY extract values that are explicitly present in the provided text. Do NOT invent, guess, or estimate any value.
+- If a value is genuinely not present or cannot be found in either the page text or table, return null. Never fill in a number that is not printed.
+- Do NOT copy values from one row to another incorrectly. Each pooling station row is independent.
+- Never extrapolate or infer numeric values. Extract only what is literally printed.
 """.strip()
 
 
