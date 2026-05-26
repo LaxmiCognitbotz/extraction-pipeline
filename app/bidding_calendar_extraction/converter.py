@@ -11,6 +11,7 @@ Column order:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 import openpyxl
@@ -20,6 +21,27 @@ from openpyxl.utils import get_column_letter
 from app.bidding_calendar_extraction.models import BiddingSchemeRecord
 
 logger = logging.getLogger(__name__)
+
+# Regex for characters that are illegal in openpyxl / XML (ASCII 0-8, 11-12, 14-31)
+_ILLEGAL_CHARACTERS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _clean_value(val: any) -> any:
+    """Remove control characters and fix common encoding artifacts in PDF text."""
+    if isinstance(val, str):
+        # 1. Replace the weird "\t6" sequence with a clean en-dash "–"
+        val = val.replace("\t6", "–")
+        # 2. Replace tabs with a space
+        val = val.replace("\t", " ")
+        # 3. Remove null characters
+        val = val.replace("\u0000", "")
+        # 4. Remove other illegal control characters
+        val = _ILLEGAL_CHARACTERS_RE.sub("", val)
+        # 5. Clean up multiple spaces
+        val = re.sub(r" +", " ", val)
+        return val.strip()
+    return val
+
 
 # ── Styles ─────────────────────────────────────────────────────────────────
 _HEADER_FILL   = PatternFill("solid", fgColor="1F3864")
@@ -117,19 +139,30 @@ def records_to_excel(
 
     for rec in records:
         d = rec.model_dump()
+        
+        # Clean all string values in dictionary
+        for k, v in d.items():
+            if k != "major_elements":
+                d[k] = _clean_value(v)
+
         elements: list[str] = d.get("major_elements") or []
+        cleaned_elements = []
+        for el in elements:
+            cleaned_el = _clean_value(el)
+            if cleaned_el:  # Filter out empty/null/whitespace-only elements
+                cleaned_elements.append(cleaned_el)
 
         # If a scheme has no elements, still write one row (major_element = null)
-        rows_to_write = elements if elements else [None]
+        rows_to_write = cleaned_elements if cleaned_elements else [None]
         scheme_group += 1
         apply_alt = (scheme_group % 2 == 0)
 
         for element in rows_to_write:
             for col_idx, key in enumerate(ALL_COLUMNS, start=1):
                 if key == "major_elements":
-                    val = element        # one element per row
+                    val = element        # already cleaned
                 else:
-                    val = d.get(key)
+                    val = d.get(key)     # already cleaned
 
                 cell = ws.cell(row=row_idx, column=col_idx, value=val)
                 cell.font = _DATA_FONT

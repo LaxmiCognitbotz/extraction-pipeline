@@ -65,6 +65,20 @@ def _date_from_filename(filename: str) -> str | None:
 # PDF page → structured text bundle
 # ─────────────────────────────────────────────────────────────────────────────
 
+def clean_pdf_text(text: str) -> str:
+    if not text:
+        return ""
+    # 1. Replace the weird "\t6" sequence with a clean en-dash "–"
+    text = text.replace("\t6", "–")
+    # 2. Remove null bytes (\u0000)
+    text = text.replace("\u0000", "")
+    # 3. Replace individual tabs with a space (so they don't break structural formatting)
+    text = text.replace("\t", " ")
+    # 4. Clean up multiple spaces
+    text = re.sub(r" +", " ", text)
+    return text.strip()
+
+
 def _extract_page_bundle(page: Any) -> str:
     """
     Build a text bundle for the LLM from one pdfplumber page.
@@ -75,8 +89,9 @@ def _extract_page_bundle(page: Any) -> str:
     lines: list[str] = []
 
     raw_text = page.extract_text(x_tolerance=3, y_tolerance=3) or ""
+    raw_text = clean_pdf_text(raw_text)
     lines.append("=== PAGE TEXT ===")
-    lines.append(raw_text.strip())
+    lines.append(raw_text)
     lines.append("")
 
     tables = page.extract_tables(
@@ -106,6 +121,7 @@ def _extract_page_bundle(page: Any) -> str:
                     cleaned.append("")
                 else:
                     s = str(cell).strip()
+                    s = clean_pdf_text(s)
                     s = re.sub(r"[\r\n]+", " | ", s)   # preserve bullet structure
                     s = re.sub(r"[ \t]{2,}", " ", s)
                     cleaned.append(s)
