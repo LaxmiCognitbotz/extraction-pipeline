@@ -60,7 +60,7 @@ def _process_folder(
 
     logger.info("Found %d PDF(s) in %s", len(pdf_files), folder_path.name)
     if limit is not None:
-        pdf_files = pdf_files[-limit:]  # Process the most recent files
+        pdf_files = pdf_files[:limit]  # Process the most recent files (top of the sorted list)
         logger.info("Limiting to the most recent %d PDF(s) for extraction", len(pdf_files))
 
     for pdf_path in pdf_files:

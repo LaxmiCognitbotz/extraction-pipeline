@@ -38,6 +38,7 @@ Rules:
 
 SYSTEM_PROMPT_PROPOSED_RE = """
 You are a data extraction agent for CTUIL Proposed RE Substations Margin PDF reports (older reports).
+These reports are typically titled: "Status of margins available at existing ISTS substations (non RE) for proposed RE integration".
 Extract every substation row from the table cells provided.
 
 Rules:
@@ -55,7 +56,7 @@ Rules:
 1. Carry the Region header forward. If a row starts with a region like 'Northern Region', 'Western Region', etc., remember it and set it as the `region` field for all subsequent pooling station rows until a new region appears.
 2. Carry the Category header forward. If a row contains section headers like 'A. Existing RE Pooling Stations', 'B. Under Implementation RE Pooling Stations', etc., remember it and set it as the `category` field for all subsequent rows until a new category header appears.
 3. Never skip any pooling station rows.
-4. Extract serial numbers, pooling station names, states, RE potentials, BESS capacities, connectivity parameters, margins, and GNA effectiveness exactly as printed.
+4. Extract pooling station names, states, RE potentials, BESS capacities, connectivity parameters, margins, and GNA effectiveness exactly as printed.
 5. Return null for blank/dash/space cells.
 """.strip()
 
@@ -64,7 +65,7 @@ Rules:
 # Filename date helper
 # =─────────────────────────────────────────────────────────────────────────────
 
-_FILENAME_DATE_RE = re.compile(r"(\d{2})[-_ ](\d{2})[-_ ](\d{4})")
+_FILENAME_DATE_RE = re.compile(r"(\d{2})[-_ ]?(\d{2})[-_ ]?(\d{4})")
 
 
 def _date_from_filename(filename: str) -> str | None:

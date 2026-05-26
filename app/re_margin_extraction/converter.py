@@ -318,7 +318,6 @@ RE_COLUMNS = [
     (["As On Date"], "As On Date"),
     (["Region"], "Region"),
     (["Category"], "Category"),
-    (["Sl. No."], "Sl. No."),
     (["Pooling Station"], "Pooling Station"),
     (["State"], "State"),
     (["RE Potential (MW)", "RE Potential [A]"], "RE Potential [A]"),
@@ -352,23 +351,22 @@ def write_re_sheet(ws: openpyxl.worksheet.worksheet.Worksheet, records: list[Any
     style_merged_header(ws, 1, 2, 2, 2, _RE_HEADER_FILL, _RE_HEADER_FONT, "As On Date", align_center)
     style_merged_header(ws, 1, 3, 2, 3, _RE_HEADER_FILL, _RE_HEADER_FONT, "Region", align_center)
     style_merged_header(ws, 1, 4, 2, 4, _RE_HEADER_FILL, _RE_HEADER_FONT, "Category", align_center)
-    style_merged_header(ws, 1, 5, 2, 5, _RE_HEADER_FILL, _RE_HEADER_FONT, "Sl. No.", align_center)
-    style_merged_header(ws, 1, 6, 2, 6, _RE_HEADER_FILL, _RE_HEADER_FONT, "Pooling Station", align_center)
-    style_merged_header(ws, 1, 7, 2, 7, _RE_HEADER_FILL, _RE_HEADER_FONT, "State", align_center)
+    style_merged_header(ws, 1, 5, 2, 5, _RE_HEADER_FILL, _RE_HEADER_FONT, "Pooling Station", align_center)
+    style_merged_header(ws, 1, 6, 2, 6, _RE_HEADER_FILL, _RE_HEADER_FONT, "State", align_center)
     
     # Merged blocks
-    style_merged_header(ws, 1, 8, 1, 10, _RE_HEADER_FILL, _RE_HEADER_FONT, "RE Potential (MW)", align_center)
-    style_merged_header(ws, 1, 11, 2, 11, _RE_HEADER_FILL, _RE_HEADER_FONT, "Expected CoD of Pooling Station", align_center)
-    style_merged_header(ws, 1, 12, 1, 14, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Granted / Agreed (MW)", align_center)
-    style_merged_header(ws, 1, 15, 1, 17, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Under Process (MW)", align_center)
-    style_merged_header(ws, 1, 18, 1, 20, _RE_HEADER_FILL, _RE_HEADER_FONT, "Margin for Connectivity (MW)", align_center)
-    style_merged_header(ws, 1, 21, 1, 23, _RE_HEADER_FILL, _RE_HEADER_FONT, "Addl Margin requiring ICT Aug / Tr. System (MW)", align_center)
+    style_merged_header(ws, 1, 7, 1, 9, _RE_HEADER_FILL, _RE_HEADER_FONT, "RE Potential (MW)", align_center)
+    style_merged_header(ws, 1, 10, 2, 10, _RE_HEADER_FILL, _RE_HEADER_FONT, "Expected CoD of Pooling Station", align_center)
+    style_merged_header(ws, 1, 11, 1, 13, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Granted / Agreed (MW)", align_center)
+    style_merged_header(ws, 1, 14, 1, 16, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Under Process (MW)", align_center)
+    style_merged_header(ws, 1, 17, 1, 19, _RE_HEADER_FILL, _RE_HEADER_FONT, "Margin for Connectivity (MW)", align_center)
+    style_merged_header(ws, 1, 20, 1, 22, _RE_HEADER_FILL, _RE_HEADER_FONT, "Addl Margin requiring ICT Aug / Tr. System (MW)", align_center)
     
-    style_merged_header(ws, 1, 24, 2, 24, _RE_HEADER_FILL, _RE_HEADER_FONT, "Effectiveness of GNA for Capacity mentioned under 'Margin for Connectivity'", align_center)
+    style_merged_header(ws, 1, 23, 2, 23, _RE_HEADER_FILL, _RE_HEADER_FONT, "Effectiveness of GNA for Capacity mentioned under 'Margin for Connectivity'", align_center)
 
     # 2. Row 2 Sub Columns
     for col_idx, (_, sub_label) in enumerate(RE_COLUMNS, start=1):
-        if col_idx in [8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]:
+        if col_idx in [7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]:
             ws.cell(row=2, column=col_idx, value=sub_label)
 
     # Write Data starting at row 3
