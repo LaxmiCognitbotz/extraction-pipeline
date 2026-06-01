@@ -45,6 +45,7 @@ OUTPUT_JSON = OUTPUT_DIR / "revocations_langextract.json"
 def run_pipeline(
     limit: int | None = None,
     single_file: str | None = None,
+    force: bool = False,
 ) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -76,6 +77,16 @@ def run_pipeline(
         except Exception as exc:
             logger.warning("Failed to load existing JSON: %s", exc)
             
+    if not force and not single_file:
+        already_processed = {r.get("source_file", "") for r in existing_rows}
+        skipped = [p for p in pdf_files if p.name in already_processed]
+        pdf_files = [p for p in pdf_files if p.name not in already_processed]
+        if skipped:
+            logger.info("Skipping %d already-extracted PDF(s). Use --force to re-extract.", len(skipped))
+        if not pdf_files:
+            logger.info("All selected PDFs are already extracted. Exiting.")
+            return
+
     pdf_names = {p.name for p in pdf_files}
     all_rows = [r for r in existing_rows if r.get("source_file") not in pdf_names]
     
@@ -128,6 +139,11 @@ if __name__ == "__main__":
         default=None,
         help="Max number of PDFs to process (default: all).",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-extraction of already extracted PDFs.",
+    )
     args = parser.parse_args()
 
-    run_pipeline(limit=args.limit, single_file=args.file)
+    run_pipeline(limit=args.limit, single_file=args.file, force=args.force)

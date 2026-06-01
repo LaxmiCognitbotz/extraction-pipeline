@@ -46,6 +46,7 @@ def _process_folder(
     json_out: Path,
     limit: int | None,
     pages_per_chunk: int,
+    force: bool = False,
 ) -> list[Any]:
     """Extract margin records from all PDFs in a given folder up to the limit."""
     all_records = []
@@ -64,6 +65,17 @@ def _process_folder(
         logger.info("Limiting to the most recent %d PDF(s) for extraction", len(pdf_files))
 
     existing_records = _load_existing_records(json_out, kind)
+    
+    if not force:
+        already_processed = {getattr(r, 'source_file', '') for r in existing_records}
+        skipped = [p for p in pdf_files if p.name in already_processed]
+        pdf_files = [p for p in pdf_files if p.name not in already_processed]
+        if skipped:
+            logger.info("Skipping %d already-extracted PDF(s) in %s. Use --force to re-extract.", len(skipped), folder_path.name)
+        if not pdf_files:
+            logger.info("All selected PDFs in %s are already extracted. Exiting.", folder_path.name)
+            return existing_records
+
     pdf_names = {p.name for p in pdf_files}
     all_records = [r for r in existing_records if getattr(r, 'source_file', '') not in pdf_names]
     
@@ -143,6 +155,7 @@ def run_pipeline(
     pages_per_chunk: int = 4,
     folder_filter: str = "all",
     single_file: str | None = None,
+    force: bool = False,
 ) -> None:
     """Run extraction on folders independently and export a styled Excel file."""
     logger.info("Initializing Renewable Energy Margin Extraction Pipeline...")
@@ -192,7 +205,8 @@ def run_pipeline(
                 kind="non-re",
                 json_out=NON_RE_JSON_OUT,
                 limit=limit,
-                pages_per_chunk=pages_per_chunk
+                pages_per_chunk=pages_per_chunk,
+                force=force
             )
     else:
         non_re_records = _load_existing_records(NON_RE_JSON_OUT, kind="non-re")
@@ -222,7 +236,8 @@ def run_pipeline(
                 kind="proposed-re",
                 json_out=PROPOSED_RE_JSON_OUT,
                 limit=limit,
-                pages_per_chunk=pages_per_chunk
+                pages_per_chunk=pages_per_chunk,
+                force=force
             )
     else:
         proposed_re_records = _load_existing_records(PROPOSED_RE_JSON_OUT, kind="proposed-re")
@@ -252,7 +267,8 @@ def run_pipeline(
                 kind="re-substations",
                 json_out=RE_JSON_OUT,
                 limit=limit,
-                pages_per_chunk=pages_per_chunk
+                pages_per_chunk=pages_per_chunk,
+                force=force
             )
     else:
         re_records = _load_existing_records(RE_JSON_OUT, kind="re-substations")
@@ -299,6 +315,11 @@ if __name__ == "__main__":
         default=4,
         help="Pages per LLM call (default: 4)."
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-extraction of already extracted PDFs."
+    )
     args = parser.parse_args()
 
     # Parse limit argument
@@ -314,5 +335,6 @@ if __name__ == "__main__":
         limit=limit_val,
         pages_per_chunk=args.pages_per_chunk,
         folder_filter=args.folder,
-        single_file=args.file
+        single_file=args.file,
+        force=args.force
     )

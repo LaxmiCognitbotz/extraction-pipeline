@@ -129,9 +129,20 @@ def _process_files(
     json_out: Path,
     excel_out: Path,
     pages_per_chunk: int,
+    force: bool = False,
 ) -> list[RevocationRecord]:
     existing_records = _load_existing_json(json_out)
     
+    if not force:
+        already_processed = {getattr(r, 'source_file', '') for r in existing_records}
+        skipped = [p for p in pdf_files if p.name in already_processed]
+        pdf_files = [p for p in pdf_files if p.name not in already_processed]
+        if skipped:
+            logger.info("Skipping %d already-extracted PDF(s). Use --force to re-extract.", len(skipped))
+        if not pdf_files:
+            logger.info("All selected PDFs are already extracted. Exiting.")
+            return existing_records
+
     # Remove records that come from the PDFs we are currently processing (to prevent dupes)
     pdf_names = {p.name for p in pdf_files}
     all_records = [r for r in existing_records if r.source_file not in pdf_names]
@@ -167,6 +178,7 @@ def _process_files(
 def run_pipeline(
     pages_per_chunk: int = 3,
     limit: int | None = None,
+    force: bool = False,
 ) -> None:
     pdf_files = sorted(PDF_INPUT_DIR.glob("*.pdf"))
     if not pdf_files:
@@ -176,7 +188,7 @@ def run_pipeline(
     if limit is not None:
         pdf_files = pdf_files[:limit]
         logger.info("Limiting to most recent %d PDF(s)", limit)
-    _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk)
+    _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk, force=force)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -200,6 +212,11 @@ if __name__ == "__main__":
         type=int, default=3,
         help="Pages per LLM call (default: 3).",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-extraction of already extracted PDFs.",
+    )
     args = parser.parse_args()
 
     limit_val: int | None = None
@@ -215,6 +232,6 @@ if __name__ == "__main__":
         if not pdf_path.exists():
             logger.error("File not found: %s", pdf_path.resolve())
             sys.exit(1)
-        _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk)
+        _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk, force=True)
     else:
-        run_pipeline(pages_per_chunk=args.pages_per_chunk, limit=limit_val)
+        run_pipeline(pages_per_chunk=args.pages_per_chunk, limit=limit_val, force=args.force)
