@@ -1,6 +1,10 @@
 """
 Pydantic-AI agent for CTUIL Revocation (24.6) PDF extraction.
 Extracts the 14 core columns that are common across all 9 PDF vintages.
+
+Page/table extraction is delegated to shared.pdf_table_extractor, which
+provides annotated-markdown tables with column-path legends, multi-row
+header detection, span carry-forward, and duplicate suppression.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import pdfplumber
 from pydantic_ai import Agent
 
 from shared.llm import get_model, ensure_api_key
+from shared.pdf_table_extractor import build_page_bundle, build_page_bundles_from_pdf
 from app.revocation_extraction.models import PageExtractionResult, RevocationRecord
 
 logger = logging.getLogger(__name__)
@@ -24,16 +29,34 @@ You are a data extraction agent for CTUIL Revocation (Regulation 24.6) PDF repor
 Extract every row from the table. The output schema fields and their descriptions
 are your complete specification — follow them exactly.
 
+Structural Context:
+- Each page bundle starts with "--- PAGE N of M ---" so you always know which page you are on.
+- "=== PAGE TEXT ===" contains the full human-readable text — PRIMARY source of truth.
+- "=== TABLE N (annotated markdown) ===" contains the structured table with a [COLUMN PATHS]
+  legend that maps every column index to its full header path (e.g. Col 3: Application ID).
+  Use the legend to align values to fields; never rely on visual tab-position alone.
+
 Behavioral Rules:
-1. Read BOTH "=== PAGE TEXT ===" and "=== TABLE ===" sections.
-   The page text is the primary source of truth — use it to recover values
-   that are blank or missing in the table cells.
+1. Read BOTH "=== PAGE TEXT ===" and "=== TABLE ===" for every page.
+   PAGE TEXT is primary — use it to recover values missing in the table.
 2. Never skip a row, even if some columns are empty.
-3. If a cell contains "0" (zero), extract it exactly as "0". Do NOT convert 0 to null.
-4. Only blank cells, dashes "-", or cells with only spaces should be null.
-5. Do NOT include the serial number (Sl. No. / Sr. No.) in any field.
-6. Do NOT invent, guess, or estimate values. Extract only what is literally printed.
-7. Never copy values from one row into another row incorrectly.
+3. Only blank cells, dashes "-", cells with only spaces, or "⏎" intra-cell markers should be null.
+4. Do NOT include the serial number (Sl. No. / Sr. No.) in any field.
+5. Do NOT invent, guess, or estimate values. Extract only what is literally printed.
+6. Never copy values from one row into another.
+
+Column-Type Guard Rules (CRITICAL — prevent mis-mapped columns):
+7. 'Present Connectivity / deemed GNA (MW)' MUST be a numeric MW value (e.g. "250").
+   NEVER a date. If you see a date here, the row has shifted — re-align from PAGE TEXT.
+8. 'SCOD as per Application' MUST be a date (e.g. "31-Mar-25") or null. Never "0".
+9. 'Updated / Revised SCOD' and '24.6 Compliance Due Date' must be dates, "NA", "No", or null —
+   never numeric strings like "0" or status strings like "Not commissioned".
+10. 'Connectivity Status' must be a status text (e.g. "Effective"). NEVER a date. Re-align if so.
+11. '24.6 Compliance Due Date' must be a date string. NEVER a status text like "Commissioned".
+
+Row-shift Recovery:
+- When a shift is detected, fall back to PAGE TEXT and re-map all columns by semantic meaning,
+  not by column position.
 """.strip()
 
 
@@ -49,52 +72,6 @@ def _extract_upto_month(text: str) -> str | None:
     if m:
         return m.group(1).replace("\u2019", "'").replace("\u2018", "'")
     return None
-
-
-# ── Page → text bundle ────────────────────────────────────────────────────────
-
-def _extract_page_bundle(page: Any) -> str:
-    lines: list[str] = []
-
-    raw_text = page.extract_text(x_tolerance=3, y_tolerance=3) or ""
-    lines.append("=== PAGE TEXT ===")
-    lines.append(raw_text.strip())
-    lines.append("")
-
-    tables = page.extract_tables(
-        table_settings={
-            "vertical_strategy": "lines",
-            "horizontal_strategy": "lines",
-            "snap_tolerance": 5,
-            "join_tolerance": 5,
-        }
-    )
-    if not tables:
-        tables = page.extract_tables(
-            table_settings={
-                "vertical_strategy": "text",
-                "horizontal_strategy": "lines",
-                "snap_tolerance": 5,
-                "join_tolerance": 3,
-            }
-        )
-
-    for idx, tbl in enumerate(tables):
-        lines.append(f"=== TABLE {idx + 1} (tab-separated) ===")
-        for row in tbl:
-            cleaned = []
-            for cell in row:
-                if cell is None:
-                    cleaned.append("")
-                else:
-                    s = str(cell).strip()
-                    s = re.sub(r"[\r\n]+", " | ", s)
-                    s = re.sub(r"[ \t]{2,}", " ", s)
-                    cleaned.append(s)
-            lines.append("\t".join(cleaned))
-        lines.append("")
-
-    return "\n".join(lines)
 
 
 # ── Agent singleton ───────────────────────────────────────────────────────────
@@ -126,30 +103,29 @@ def extract_pdf_with_agent(
     filename = pdf_path.name
     detected_upto: str | None = None
     all_records: list[RevocationRecord] = []
-    total = 0
 
     with pdfplumber.open(str(pdf_path)) as pdf:
         total = len(pdf.pages)
         logger.info("[%s]  %d page(s)", filename, total)
 
-        # Try to get upto_month from first page text directly
+        # Detect upto_month from the first page text
         first_text = pdf.pages[0].extract_text(x_tolerance=3, y_tolerance=3) or ""
         detected_upto = _extract_upto_month(first_text)
         if detected_upto:
-            logger.info("[%s]  upto_month detected from title: %s", filename, detected_upto)
+            logger.info("[%s]  upto_month: %s", filename, detected_upto)
 
-        bundles: list[str] = []
+        # Build page bundles using the shared extractor (produces annotated markdown)
+        page_bundles: list[str] = []
         for start in range(0, total, pages_per_chunk):
-            parts: list[str] = []
+            chunk_parts: list[str] = []
             for i, page in enumerate(pdf.pages[start: start + pages_per_chunk], start + 1):
-                parts.append(f"--- PAGE {i} of {total} ---")
-                parts.append(_extract_page_bundle(page))
-            bundles.append("\n".join(parts))
+                chunk_parts.append(build_page_bundle(page, i, total))
+            page_bundles.append("\n".join(chunk_parts))
 
-    logger.info("[%s]  %d chunk(s) → LLM", filename, len(bundles))
+    logger.info("[%s]  %d chunk(s) → LLM", filename, len(page_bundles))
 
-    for i, bundle in enumerate(bundles, 1):
-        logger.info("[%s]  chunk %d/%d", filename, i, len(bundles))
+    for i, bundle in enumerate(page_bundles, 1):
+        logger.info("[%s]  chunk %d/%d", filename, i, len(page_bundles))
         try:
             result: PageExtractionResult = agent.run_sync(
                 f"Extract all revocation records:\n\n{bundle}"
@@ -172,10 +148,7 @@ def extract_pdf_with_agent(
                 for pg_idx in range(start_page, end_page):
                     try:
                         with pdfplumber.open(str(pdf_path)) as pdf:
-                            single = (
-                                f"--- PAGE {pg_idx + 1} of {total} ---\n"
-                                + _extract_page_bundle(pdf.pages[pg_idx])
-                            )
+                            single = build_page_bundle(pdf.pages[pg_idx], pg_idx + 1, total)
                         sub: PageExtractionResult = agent.run_sync(
                             f"Extract all revocation records:\n\n{single}"
                         ).output

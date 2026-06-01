@@ -2,12 +2,18 @@
 Canonical Pydantic models for CTUIL Renewable Energy Margin PDF extraction.
 Features human-readable aliases matching PDF headers exactly, with nested column groups.
 Includes pre-validation converters to guarantee nested structures are never null in JSON.
+
+Each *Record model exposes a ``schema_info()`` classmethod that introspects
+``model_fields`` to produce the column-path legend and field metadata used by
+the agent to build its system prompt dynamically.  No column names are
+hardcoded in the agent — the models are the single source of truth.
 """
 
 from __future__ import annotations
 
 from typing import Optional, Any
 from pydantic import BaseModel, Field, model_validator
+from pydantic.fields import FieldInfo
 
 
 # =─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +128,47 @@ class NonRESubstationMarginRecord(BaseModel):
     class Config:
         populate_by_name = True
 
+    @classmethod
+    def schema_info(cls) -> dict:
+        """
+        Returns a dict describing the schema for prompt generation:
+          - 'pdf_title'       : human label for this report type
+          - 'row_noun'        : what each row represents
+          - 'carry_forward'   : list of (field_alias, description) that need
+                                carry-forward logic (state / region headers)
+          - 'scalar_fields'   : [(alias, description), …]
+          - 'nested_fields'   : [(parent_alias, [(sub_alias, …), …]), …]
+        """
+        _INTERNAL = {"Source File", "As On Date"}  # injected; not in PDF table
+        _CARRY = {
+            "State": "State name header row — carry forward to all subsequent rows until a new state appears.",
+        }
+        scalar, nested = [], []
+        for fname, finfo in cls.model_fields.items():
+            alias = finfo.alias or fname
+            if alias in _INTERNAL:
+                continue
+            ann = finfo.annotation
+            # Resolve Optional[X] → X
+            origin = getattr(ann, "__origin__", None)
+            args = getattr(ann, "__args__", ())
+            inner = args[0] if (origin is type(None) or origin is None) and args else ann
+            if hasattr(inner, "model_fields") and inner is not str:
+                sub_fields = [
+                    (sf.alias or sn)
+                    for sn, sf in inner.model_fields.items()
+                ]
+                nested.append((alias, sub_fields))
+            else:
+                scalar.append((alias, _CARRY.get(alias, "")))
+        return {
+            "pdf_title": "CTUIL Non-RE Substations Margin",
+            "row_noun": "substation",
+            "carry_forward": [(k, v) for k, v in _CARRY.items()],
+            "scalar_fields": scalar,
+            "nested_fields": nested,
+        }
+
 
 class NonRESubstationMarginResult(BaseModel):
     """Structured extraction result for a chunk of Non-RE Substations page."""
@@ -190,6 +237,47 @@ class ProposedRESubstationMarginRecord(BaseModel):
 
     class Config:
         populate_by_name = True
+
+    @classmethod
+    def schema_info(cls) -> dict:
+        _INTERNAL = {"Source File", "As On Date"}
+        _CARRY = {
+            "State": "State name header row — carry forward to all subsequent rows until a new state appears.",
+        }
+        scalar, nested = [], []
+        for fname, finfo in cls.model_fields.items():
+            alias = finfo.alias or fname
+            if alias in _INTERNAL:
+                continue
+            ann = finfo.annotation
+            args = getattr(ann, "__args__", ())
+            inner = args[0] if args else ann
+            if hasattr(inner, "model_fields") and inner is not str:
+                # Two-level nested (e.g. Transformation Capacity > Existing > 765/400kV)
+                sub_entries = []
+                for mid_name, mid_info in inner.model_fields.items():
+                    mid_alias = mid_info.alias or mid_name
+                    mid_ann = mid_info.annotation
+                    mid_args = getattr(mid_ann, "__args__", ())
+                    mid_inner = mid_args[0] if mid_args else mid_ann
+                    if hasattr(mid_inner, "model_fields") and mid_inner is not str:
+                        leaf_aliases = [
+                            (lf.alias or ln)
+                            for ln, lf in mid_inner.model_fields.items()
+                        ]
+                        sub_entries.append((mid_alias, leaf_aliases))
+                    else:
+                        sub_entries.append((mid_alias, []))
+                nested.append((alias, sub_entries))
+            else:
+                scalar.append((alias, _CARRY.get(alias, "")))
+        return {
+            "pdf_title": "CTUIL Proposed RE Substations Margin (older reports)",
+            "row_noun": "substation",
+            "carry_forward": [(k, v) for k, v in _CARRY.items()],
+            "scalar_fields": scalar,
+            "nested_fields": nested,
+        }
 
 
 class ProposedRESubstationMarginResult(BaseModel):
@@ -261,6 +349,37 @@ class RESubstationMarginRecord(BaseModel):
     class Config:
         populate_by_name = True
 
+    @classmethod
+    def schema_info(cls) -> dict:
+        _INTERNAL = {"Source File", "As On Date"}
+        _CARRY = {
+            "Region":   "Region header row (e.g. 'Northern Region') — carry forward until a new region appears.",
+            "Category": "Category header row (e.g. 'A. Existing RE Pooling Stations') — carry forward until a new category appears.",
+        }
+        scalar, nested = [], []
+        for fname, finfo in cls.model_fields.items():
+            alias = finfo.alias or fname
+            if alias in _INTERNAL:
+                continue
+            ann = finfo.annotation
+            args = getattr(ann, "__args__", ())
+            inner = args[0] if args else ann
+            if hasattr(inner, "model_fields") and inner is not str:
+                sub_fields = [
+                    (sf.alias or sn)
+                    for sn, sf in inner.model_fields.items()
+                ]
+                nested.append((alias, sub_fields))
+            else:
+                scalar.append((alias, _CARRY.get(alias, "")))
+        return {
+            "pdf_title": "CTUIL RE Substations Margin",
+            "row_noun": "pooling station",
+            "carry_forward": [(k, v) for k, v in _CARRY.items()],
+            "scalar_fields": scalar,
+            "nested_fields": nested,
+        }
+
 
 class RESubstationMarginResult(BaseModel):
     """Structured extraction result for a chunk of RE Substations page."""
@@ -269,3 +388,22 @@ class RESubstationMarginResult(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+# =─────────────────────────────────────────────────────────────────────────────
+# Module-level helper — used by the agent to get schema info by kind string
+# =─────────────────────────────────────────────────────────────────────────────
+
+_KIND_TO_RECORD: dict[str, type] = {
+    "non-re":          NonRESubstationMarginRecord,
+    "proposed-re":     ProposedRESubstationMarginRecord,
+    "re-substations":  RESubstationMarginRecord,
+}
+
+
+def get_schema_info(kind: str) -> dict:
+    """Return schema_info() for the given PDF kind string."""
+    cls = _KIND_TO_RECORD.get(kind)
+    if cls is None:
+        raise ValueError(f"Unknown kind '{kind}'. Valid: {list(_KIND_TO_RECORD)}")
+    return cls.schema_info()

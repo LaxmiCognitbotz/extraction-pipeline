@@ -82,7 +82,9 @@ class RevocationRecord(BaseModel):
             "Present connectivity / deemed GNA quantum in MW. "
             "PDF header varies: 'Present Connectivity/deemed GNA', "
             "'Present Maximum Connectivity/deemed GNA', 'Present Connectivity /deemed GNA'. "
-            "Extract the numeric MW value as a string."
+            "Extract the numeric MW value as a string (e.g. '250', '69.5'). "
+            "MUST be a number — NEVER a date string. "
+            "If you see a date in this position, the table row has shifted; re-read from PAGE TEXT."
         ),
     )
     substation: Optional[str] = Field(
@@ -137,9 +139,10 @@ class RevocationRecord(BaseModel):
         default=None,
         description=(
             "SCOD as per the original application (first date considered). "
-            "PDF header varies: 'SCOD as per application (First date considered)', "
-            "'SCOD as per application (First date considered)'. "
-            "Extract the date as printed."
+            "PDF header varies: 'SCOD as per application (First date considered)'. "
+            "Extract the date exactly as printed (e.g. '31-Mar-25', '30-Jun-2022'). "
+            "If the PDF cell is blank, empty, or has no recognizable date, return null. "
+            "NEVER return '0' or any non-date numeric string for this field."
         ),
     )
     updated_revised_scod: Optional[str] = Field(

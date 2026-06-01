@@ -1,5 +1,13 @@
 """
 Pydantic-AI agent module for CTUIL Renewable Energy Margin PDF extraction.
+
+System prompts are built dynamically from each model's ``schema_info()``
+classmethod so column names, nested paths and carry-forward rules are kept
+in ONE place (models.py) and flow automatically into the prompts.
+
+Page/table extraction is delegated to shared.pdf_table_extractor, which
+provides annotated-markdown tables with column-path legends, multi-row
+header detection, span carry-forward, and duplicate suppression.
 """
 
 from __future__ import annotations
@@ -13,73 +21,122 @@ import pdfplumber
 from pydantic_ai import Agent
 
 from shared.llm import get_model, ensure_api_key
+from shared.pdf_table_extractor import build_page_bundle
 from app.re_margin_extraction.models import (
     NonRESubstationMarginResult,
     ProposedRESubstationMarginResult,
     RESubstationMarginResult,
+    get_schema_info,
 )
 
 logger = logging.getLogger(__name__)
 
 # =─────────────────────────────────────────────────────────────────────────────
-# Prompts
+# Dynamic system-prompt builder  (derives everything from schema_info)
 # =─────────────────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT_NON_RE = """
-You are a data extraction agent for CTUIL Non-RE Substations Margin PDF reports.
-Extract every substation row by reading BOTH the "=== PAGE TEXT ===" and the "=== TABLE ===" sections.
+def _build_system_prompt(kind: str) -> str:
+    """
+    Build the full system prompt for a given PDF kind by introspecting the
+    corresponding Pydantic model's schema_info().  No column names are
+    hardcoded here — every detail is derived from the model.
 
-Rules:
-1. The "=== PAGE TEXT ===" is your primary source of truth and contains the full text lines for each row. Use it to recover values if the "=== TABLE ===" has empty, missing, or null cells.
-2. Carry the State header forward. For example, if a row contains only a state name like "Gujarat" or "Maharashtra", remember it and set it as the `state` field for every substation row that follows, until a new state header appears.
-3. Never skip any substation rows.
-4. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
-5. Extract the station name, capacity, allocations, margins, and bays required exactly as printed.
+    The generated prompt has four sections:
+      1. Role + report-type header (from schema_info pdf_title / row_noun)
+      2. Core extraction rules (universal + carry-forward rules from schema)
+      3. CRITICAL nested-column-mapping block (built from nested_fields)
+      4. Anti-hallucination rules
+    """
+    info = get_schema_info(kind)
 
-Critical Anti-Hallucination Rules:
-- ONLY extract values that are explicitly present in the provided text. Do NOT invent, guess, or estimate any value.
-- If a value is genuinely not present or cannot be found in either the page text or table, return null. Never fill in a number that is not printed.
-- Do NOT copy values from one row to another incorrectly. Each substation row is independent.
-- Never extrapolate or infer numeric values. Extract only what is literally printed.
-""".strip()
+    pdf_title  = info["pdf_title"]
+    row_noun   = info["row_noun"]
+    cf_fields  = info["carry_forward"]   # [(alias, description), …]
+    nested     = info["nested_fields"]   # [(parent, [sub, …]), …] or
+                                         # [(parent, [(mid, [leaf, …]), …]), …]
 
-SYSTEM_PROMPT_PROPOSED_RE = """
-You are a data extraction agent for CTUIL Proposed RE Substations Margin PDF reports (older reports).
-These reports are typically titled: "Status of margins available at existing ISTS substations (non RE) for proposed RE integration".
-Extract every substation row by reading BOTH the "=== PAGE TEXT ===" and the "=== TABLE ===" sections.
+    # ── 1. Role header ──────────────────────────────────────────────────
+    role = (
+        f"You are a data extraction agent for {pdf_title} PDF reports.\n"
+        f"Extract every {row_noun} row by reading BOTH the \""
+        "=== PAGE TEXT ===\" and the \"=== TABLE ===\" sections."
+    )
 
-Rules:
-1. The "=== PAGE TEXT ===" is your primary source of truth and contains the full text lines for each row. Use it to recover values if the "=== TABLE ===" has empty, missing, or null cells.
-2. Carry the State header forward. If a row contains only a state name (e.g., 'Gujarat', 'Maharashtra'), remember it and set it as the `state` field for all subsequent substation rows, until a new state header appears.
-3. Never skip any substation rows.
-4. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
-5. Carefully extract the Existing, Under Implementation, and Planned transformation capacities (both 765/400kV and 400/220kV levels) from their respective columns.
+    # ── 2. Core rules ─────────────────────────────────────────────────
+    # Build carry-forward rules dynamically from schema
+    cf_rules: list[str] = []
+    for i, (alias, desc) in enumerate(cf_fields, start=2):
+        cf_rules.append(f"{i}. {desc}")
 
-Critical Anti-Hallucination Rules:
-- ONLY extract values that are explicitly present in the provided text. Do NOT invent, guess, or estimate any value.
-- If a value is genuinely not present or cannot be found in either the page text or table, return null. Never fill in a number that is not printed.
-- Do NOT copy values from one row to another incorrectly. Each substation row is independent.
-- Never extrapolate or infer numeric values. Extract only what is literally printed.
-""".strip()
+    num_start = len(cf_fields) + 2   # next rule number after carry-forward rules
 
-SYSTEM_PROMPT_RE = """
-You are a data extraction agent for CTUIL RE Substations Margin PDF reports.
-Extract every pooling station row by reading BOTH the "=== PAGE TEXT ===" and the "=== TABLE ===" sections.
+    fixed_rules = [
+        "1. \"=== PAGE TEXT ===\" is your primary source of truth. "
+        "Use it to recover values when TABLE cells are empty or null.",
+    ] + cf_rules + [
+        f"{num_start}. Never skip any {row_noun} rows.",
+        f"{num_start + 1}. If a cell contains '0' (zero), extract it as '0'. "
+        "Do NOT convert '0' to null. Only blank cells, dashes '-', or spaces should be null.",
+        f"{num_start + 2}. Extract all field values exactly as printed in the source.",
+    ]
+    rules_block = "Rules:\n" + "\n".join(fixed_rules)
 
-Rules:
-1. The "=== PAGE TEXT ===" is your primary source of truth and contains the full text lines for each row. Use it to recover values if the "=== TABLE ===" has empty, missing, or null cells.
-2. Carry the Region header forward. If a row starts with a region like 'Northern Region', 'Western Region', etc., remember it and set it as the `region` field for all subsequent pooling station rows until a new region appears.
-3. Carry the Category header forward. If a row contains section headers like 'A. Existing RE Pooling Stations', 'B. Under Implementation RE Pooling Stations', etc., remember it and set it as the `category` field for all subsequent rows until a new category header appears.
-4. Never skip any pooling station rows.
-5. If a cell or text line contains '0' (zero), you must extract it exactly as '0'. Do NOT convert '0' to null. Only blank cells, dashes, or cells containing only spaces should be returned as null.
-6. Extract pooling station names, states, RE potentials, BESS capacities, connectivity parameters, margins, and GNA effectiveness exactly as printed.
+    # ── 3. Nested-column-mapping block ───────────────────────────────────
+    nested_lines: list[str] = [
+        "CRITICAL — Nested Column Mapping (read carefully):",
+        "The TABLE includes a \"[COLUMN PATHS]\" legend mapping Col N to nested JSON keys.",
+        "Format:  Col N: Parent Column > Sub-column  (or Parent > Mid > Sub)",
+        "You MUST use this legend to place each cell in the correct nested JSON object.",
+        "Do NOT treat sub-column header rows as data rows — they are encoded in the legend.",
+        "",
+        "Expected nested column groups for this report type:",
+    ]
 
-Critical Anti-Hallucination Rules:
-- ONLY extract values that are explicitly present in the provided text. Do NOT invent, guess, or estimate any value.
-- If a value is genuinely not present or cannot be found in either the page text or table, return null. Never fill in a number that is not printed.
-- Do NOT copy values from one row to another incorrectly. Each pooling station row is independent.
-- Never extrapolate or infer numeric values. Extract only what is literally printed.
-""".strip()
+    for parent, subs in nested:
+        # subs is either [str, …] (one-level) or [(str, [str,…]), …] (two-level)
+        if subs and isinstance(subs[0], tuple):
+            # Two-level nesting (e.g. Transformation Capacity > Existing > 765/400kV)
+            for mid, leaves in subs:
+                if leaves:
+                    for leaf in leaves:
+                        nested_lines.append(f"  {parent} > {mid} > {leaf}")
+                else:
+                    nested_lines.append(f"  {parent} > {mid}")
+        else:
+            # One-level nesting
+            for sub in subs:
+                nested_lines.append(f"  {parent} > {sub}")
+
+    nested_lines += [
+        "",
+        "Example: a column path of \"X > Y\" means the cell value belongs at:",
+        "  { \"X\": { \"Y\": <value> } }    in the output JSON.",
+    ]
+    nested_block = "\n".join(nested_lines)
+
+    # ── 4. Anti-hallucination rules ────────────────────────────────────
+    anti_halluc = (
+        "Anti-Hallucination Rules:\n"
+        "- ONLY extract values explicitly present in the text. Never invent or estimate.\n"
+        "- If a value is genuinely absent, return null. Never fill in a number not printed.\n"
+        f"- Each {row_noun} row is independent — never copy values between rows.\n"
+        "- Never extrapolate or infer numeric values."
+    )
+
+    return "\n\n".join([role, rules_block, nested_block, anti_halluc])
+
+
+# Warm-up cache: build prompts once at import time and store them.
+# This avoids rebuilding on every agent creation call.
+_PROMPT_CACHE: dict[str, str] = {}
+
+
+def _get_system_prompt(kind: str) -> str:
+    if kind not in _PROMPT_CACHE:
+        _PROMPT_CACHE[kind] = _build_system_prompt(kind)
+        logger.debug("[%s] system prompt built (%d chars)", kind, len(_PROMPT_CACHE[kind]))
+    return _PROMPT_CACHE[kind]
+
 
 
 # =─────────────────────────────────────────────────────────────────────────────
@@ -97,69 +154,7 @@ def _date_from_filename(filename: str) -> str | None:
     return None
 
 
-# =─────────────────────────────────────────────────────────────────────────────
-# Text cleaning helper
-# =─────────────────────────────────────────────────────────────────────────────
 
-def clean_pdf_text(text: str) -> str:
-    if not text:
-        return ""
-    # 1. Replace the weird "\t6" sequence with a clean en-dash "–"
-    text = text.replace("\t6", "–")
-    # 2. Remove null bytes (\u0000)
-    text = text.replace("\u0000", "")
-    # 3. Replace individual tabs with a space (so they don't break structural formatting)
-    text = text.replace("\t", " ")
-    # 4. Clean up multiple spaces
-    text = re.sub(r" +", " ", text)
-    return text.strip()
-
-
-def _extract_page_bundle(page: Any) -> str:
-    """Build a clean text bundle for the LLM from one pdfplumber page."""
-    lines: list[str] = []
-
-    raw_text = page.extract_text(x_tolerance=3, y_tolerance=3) or ""
-    raw_text = clean_pdf_text(raw_text)
-    lines.append("=== PAGE TEXT ===")
-    lines.append(raw_text)
-    lines.append("")
-
-    tables = page.extract_tables(
-        table_settings={
-            "vertical_strategy": "lines",
-            "horizontal_strategy": "lines",
-            "snap_tolerance": 5,
-            "join_tolerance": 5,
-        }
-    )
-    if not tables:
-        tables = page.extract_tables(
-            table_settings={
-                "vertical_strategy": "text",
-                "horizontal_strategy": "lines",
-                "snap_tolerance": 5,
-                "join_tolerance": 3,
-            }
-        )
-
-    for idx, tbl in enumerate(tables):
-        lines.append(f"=== TABLE {idx + 1} (cells, tab-separated) ===")
-        for row in tbl:
-            cleaned: list[str] = []
-            for cell in row:
-                if cell is None:
-                    cleaned.append("")
-                else:
-                    s = str(cell).strip()
-                    s = clean_pdf_text(s)
-                    s = re.sub(r"[\r\n]+", " | ", s)
-                    s = re.sub(r"[ \t]{2,}", " ", s)
-                    cleaned.append(s)
-            lines.append("\t".join(cleaned))
-        lines.append("")
-
-    return "\n".join(lines)
 
 
 # =─────────────────────────────────────────────────────────────────────────────
@@ -175,13 +170,14 @@ def _get_agent(kind: str) -> Agent:
     global _non_re_agent, _proposed_re_agent, _re_agent
     ensure_api_key()
     model = get_model()
+    system_prompt = _get_system_prompt(kind)
 
     if kind == "non-re":
         if _non_re_agent is None:
             _non_re_agent = Agent(
                 model=model,
                 output_type=NonRESubstationMarginResult,
-                system_prompt=SYSTEM_PROMPT_NON_RE,
+                system_prompt=system_prompt,
             )
             logger.info("Non-RE Agent ready.")
         return _non_re_agent
@@ -190,7 +186,7 @@ def _get_agent(kind: str) -> Agent:
             _proposed_re_agent = Agent(
                 model=model,
                 output_type=ProposedRESubstationMarginResult,
-                system_prompt=SYSTEM_PROMPT_PROPOSED_RE,
+                system_prompt=system_prompt,
             )
             logger.info("Proposed RE Agent ready.")
         return _proposed_re_agent
@@ -199,7 +195,7 @@ def _get_agent(kind: str) -> Agent:
             _re_agent = Agent(
                 model=model,
                 output_type=RESubstationMarginResult,
-                system_prompt=SYSTEM_PROMPT_RE,
+                system_prompt=system_prompt,
             )
             logger.info("RE Substations Agent ready.")
         return _re_agent
@@ -236,8 +232,7 @@ def extract_margin_pdf(
         for start in range(0, total, pages_per_chunk):
             parts: list[str] = []
             for i, page in enumerate(pdf.pages[start: start + pages_per_chunk], start + 1):
-                parts.append(f"--- PAGE {i} of {total} ---")
-                parts.append(_extract_page_bundle(page))
+                parts.append(build_page_bundle(page, i, total))
             bundles.append("\n".join(parts))
 
     logger.info("[%s] [%s] %d chunk(s) → LLM", kind.upper(), filename, len(bundles))
@@ -265,10 +260,7 @@ def extract_margin_pdf(
                 for pg_idx in range(start_page, end_page):
                     try:
                         with pdfplumber.open(str(pdf_path)) as pdf:
-                            single_bundle = (
-                                f"--- PAGE {pg_idx + 1} of {total} ---\n"
-                                + _extract_page_bundle(pdf.pages[pg_idx])
-                            )
+                            single_bundle = build_page_bundle(pdf.pages[pg_idx], pg_idx + 1, total)
                         sub_result = agent.run_sync(
                             f"Extract all margin records:\n\n{single_bundle}"
                         ).output
