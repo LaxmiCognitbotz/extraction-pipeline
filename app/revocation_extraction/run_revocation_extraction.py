@@ -81,6 +81,23 @@ def _to_json(records: list[RevocationRecord]) -> list[dict]:
     return result
 
 
+def _load_existing_json(json_out: Path) -> list[RevocationRecord]:
+    """Load existing JSON into RevocationRecord instances if available."""
+    if not json_out.exists():
+        return []
+    try:
+        data = json.loads(json_out.read_text(encoding="utf-8"))
+        label_to_field = {label: field for field, label, _ in _COLUMNS}
+        records = []
+        for d in data:
+            raw_d = {label_to_field[k]: v for k, v in d.items() if k in label_to_field}
+            records.append(RevocationRecord(**raw_d))
+        return records
+    except Exception as exc:
+        logger.warning("Could not load existing JSON for appending: %s", exc)
+        return []
+
+
 def _print_summary(
     records: list[RevocationRecord],
     pdf_count: int,
@@ -113,7 +130,14 @@ def _process_files(
     excel_out: Path,
     pages_per_chunk: int,
 ) -> list[RevocationRecord]:
-    all_records: list[RevocationRecord] = []
+    existing_records = _load_existing_json(json_out)
+    
+    # Remove records that come from the PDFs we are currently processing (to prevent dupes)
+    pdf_names = {p.name for p in pdf_files}
+    all_records = [r for r in existing_records if r.source_file not in pdf_names]
+    
+    if existing_records:
+        logger.info("Loaded %d existing records (kept %d after filtering for overwrites)", len(existing_records), len(all_records))
 
     for pdf_path in sorted(pdf_files):
         logger.info("Processing: %s", pdf_path.name)

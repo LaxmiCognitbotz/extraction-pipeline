@@ -63,6 +63,13 @@ def _process_folder(
         pdf_files = pdf_files[:limit]  # Process the most recent files (top of the sorted list)
         logger.info("Limiting to the most recent %d PDF(s) for extraction", len(pdf_files))
 
+    existing_records = _load_existing_records(json_out, kind)
+    pdf_names = {p.name for p in pdf_files}
+    all_records = [r for r in existing_records if getattr(r, 'source_file', '') not in pdf_names]
+    
+    if existing_records:
+        logger.info("Loaded %d existing records (kept %d after filtering for overwrites)", len(existing_records), len(all_records))
+
     for pdf_path in pdf_files:
         logger.info("Starting extraction for PDF: %s", pdf_path.name)
         try:
@@ -168,8 +175,11 @@ def run_pipeline(
     if should_extract_non_re:
         logger.info("=== [1/3] Extracting Non-RE Substations Margin ===")
         if single_file:
+            existing = _load_existing_records(NON_RE_JSON_OUT, kind="non-re")
+            non_re_records = [r for r in existing if getattr(r, 'source_file', '') != target_pdf_path.name]
+            
             recs = extract_margin_pdf(target_pdf_path, kind="non-re", pages_per_chunk=pages_per_chunk)
-            non_re_records = recs
+            non_re_records.extend(recs)
             
             NON_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
             payload = _to_flat_json(non_re_records)
@@ -195,8 +205,11 @@ def run_pipeline(
     if should_extract_proposed_re:
         logger.info("=== [2/3] Extracting Proposed RE Substations Margin ===")
         if single_file:
+            existing = _load_existing_records(PROPOSED_RE_JSON_OUT, kind="proposed-re")
+            proposed_re_records = [r for r in existing if getattr(r, 'source_file', '') != target_pdf_path.name]
+            
             recs = extract_margin_pdf(target_pdf_path, kind="proposed-re", pages_per_chunk=pages_per_chunk)
-            proposed_re_records = recs
+            proposed_re_records.extend(recs)
             
             PROPOSED_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
             payload = _to_flat_json(proposed_re_records)
@@ -222,8 +235,11 @@ def run_pipeline(
     if should_extract_re:
         logger.info("=== [3/3] Extracting RE Substations Margin ===")
         if single_file:
+            existing = _load_existing_records(RE_JSON_OUT, kind="re-substations")
+            re_records = [r for r in existing if getattr(r, 'source_file', '') != target_pdf_path.name]
+            
             recs = extract_margin_pdf(target_pdf_path, kind="re-substations", pages_per_chunk=pages_per_chunk)
-            re_records = recs
+            re_records.extend(recs)
             
             RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
             payload = _to_flat_json(re_records)

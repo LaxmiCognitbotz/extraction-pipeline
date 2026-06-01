@@ -68,7 +68,19 @@ def run_pipeline(
 
     logger.info("Processing %d PDF(s) via langextract…", len(pdf_files))
 
-    all_rows: list[dict] = []
+    existing_rows: list[dict] = []
+    if OUTPUT_JSON.exists():
+        try:
+            with open(OUTPUT_JSON, "r", encoding="utf-8") as fh:
+                existing_rows = json.load(fh)
+        except Exception as exc:
+            logger.warning("Failed to load existing JSON: %s", exc)
+            
+    pdf_names = {p.name for p in pdf_files}
+    all_rows = [r for r in existing_rows if r.get("source_file") not in pdf_names]
+    
+    if existing_rows:
+        logger.info("Loaded %d existing records (kept %d after filtering for overwrites)", len(existing_rows), len(all_rows))
 
     for pdf_path in pdf_files:
         logger.info("─── Processing: %s ───", pdf_path.name)
