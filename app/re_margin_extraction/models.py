@@ -84,7 +84,7 @@ class KVLevels220_400_Total(BaseModel):
 class NonRESubstationMarginRecord(BaseModel):
     """One substation row from the Non-RE Substations Margin table."""
 
-    source_file: str = Field(..., alias="Source File")
+    source_file: str = Field("", alias="Source File")
     as_on_date: Optional[str] = Field(None, alias="As On Date")
     state: Optional[str] = Field(None, alias="State")
     station_name: Optional[str] = Field(None, alias="Name of station")
@@ -186,7 +186,7 @@ class NonRESubstationMarginResult(BaseModel):
 class ProposedRESubstationMarginRecord(BaseModel):
     """One substation row from the older Proposed RE Substation Margin table."""
 
-    source_file: str = Field(..., alias="Source File")
+    source_file: str = Field("", alias="Source File")
     as_on_date: Optional[str] = Field(None, alias="As On Date")
     state: Optional[str] = Field(None, alias="State")
     station_name: Optional[str] = Field(None, alias="Name of station")
@@ -296,7 +296,7 @@ class ProposedRESubstationMarginResult(BaseModel):
 class RESubstationMarginRecord(BaseModel):
     """One pooling station row from the RE Substations Margin table."""
 
-    source_file: str = Field(..., alias="Source File")
+    source_file: str = Field("", alias="Source File")
     as_on_date: Optional[str] = Field(None, alias="As On Date")
     region: Optional[str] = Field(None, alias="Region")
     category: Optional[str] = Field(None, alias="Category")

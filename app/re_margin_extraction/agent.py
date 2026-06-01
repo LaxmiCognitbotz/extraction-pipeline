@@ -26,9 +26,6 @@ from app.re_margin_extraction.models import (
     NonRESubstationMarginResult,
     ProposedRESubstationMarginResult,
     RESubstationMarginResult,
-    FlatNonRESubstationMarginResult,
-    FlatProposedRESubstationMarginResult,
-    FlatRESubstationMarginResult,
     get_schema_info,
 )
 
@@ -184,7 +181,7 @@ def _get_agent(kind: str) -> Agent:
         if _non_re_agent is None:
             _non_re_agent = Agent(
                 model=model,
-                output_type=FlatNonRESubstationMarginResult,
+                output_type=NonRESubstationMarginResult,
                 system_prompt=system_prompt,
             )
             logger.info("Non-RE Agent ready.")
@@ -193,7 +190,7 @@ def _get_agent(kind: str) -> Agent:
         if _proposed_re_agent is None:
             _proposed_re_agent = Agent(
                 model=model,
-                output_type=FlatProposedRESubstationMarginResult,
+                output_type=ProposedRESubstationMarginResult,
                 system_prompt=system_prompt,
             )
             logger.info("Proposed RE Agent ready.")
@@ -202,7 +199,7 @@ def _get_agent(kind: str) -> Agent:
         if _re_agent is None:
             _re_agent = Agent(
                 model=model,
-                output_type=FlatRESubstationMarginResult,
+                output_type=RESubstationMarginResult,
                 system_prompt=system_prompt,
             )
             logger.info("RE Substations Agent ready.")
@@ -359,112 +356,10 @@ def extract_margin_pdf(
 
     # Finalize dates and inject metadata
     as_on = detected_date_ref[0] or filename_date
-    final_records = []
     for rec in all_records:
-        if kind == "non-re":
-            from app.re_margin_extraction.models import NonRESubstationMarginRecord
-            final_records.append(
-                NonRESubstationMarginRecord(
-                    source_file=filename,
-                    as_on_date=as_on,
-                    state=rec.state,
-                    station_name=rec.station_name,
-                    mva_capacity=rec.mva_capacity,
-                    allocated_under_process_mw=rec.allocated_under_process_mw,
-                    additional_margin_existing={
-                        "220kV level": rec.additional_margin_existing_220kv,
-                        "400kV level": rec.additional_margin_existing_400kv,
-                    },
-                    bays_req_existing={
-                        "220kV level": rec.bays_req_existing_220kv,
-                        "400kV level": rec.bays_req_existing_400kv,
-                    },
-                    additional_margin_ict={
-                        "220kV level": rec.additional_margin_ict_220kv,
-                        "400kV level": rec.additional_margin_ict_400kv,
-                    },
-                    bays_req_ict={
-                        "220kV level": rec.bays_req_ict_220kv,
-                        "400kV level": rec.bays_req_ict_400kv,
-                    },
-                    no_of_trfs_required=rec.no_of_trfs_required,
-                    remarks=rec.remarks,
-                )
-            )
-        elif kind == "proposed-re":
-            from app.re_margin_extraction.models import ProposedRESubstationMarginRecord
-            final_records.append(
-                ProposedRESubstationMarginRecord(
-                    source_file=filename,
-                    as_on_date=as_on,
-                    state=rec.state,
-                    station_name=rec.station_name,
-                    transformation_capacity={
-                        "Existing": {
-                            "765/400kV": rec.tc_existing_765_400,
-                            "400/220kV or 400/132kV": rec.tc_existing_400_220,
-                        },
-                        "Under Implementation": {
-                            "765/400kV": rec.tc_ui_765_400,
-                            "400/220kV": rec.tc_ui_400_220,
-                        },
-                        "Planned": {
-                            "765/400kV": rec.tc_planned_765_400,
-                            "400/220kV": rec.tc_planned_400_220,
-                        },
-                    },
-                    allocated_mw=rec.allocated_mw,
-                    additional_margin_existing={
-                        "220kV level": rec.additional_margin_existing_220kv,
-                        "400kV level": rec.additional_margin_existing_400kv,
-                    },
-                    additional_margin_ict={
-                        "220kV level": rec.additional_margin_ict_220kv,
-                        "400kV level": rec.additional_margin_ict_400kv,
-                    },
-                    no_of_trfs_required=rec.no_of_trfs_required,
-                    remarks=rec.remarks,
-                )
-            )
-        elif kind == "re-substations":
-            from app.re_margin_extraction.models import RESubstationMarginRecord
-            final_records.append(
-                RESubstationMarginRecord(
-                    source_file=filename,
-                    as_on_date=as_on,
-                    region=rec.region,
-                    category=rec.category,
-                    pooling_station=rec.pooling_station,
-                    state=rec.state,
-                    re_potential={
-                        "RE Potential [A]": rec.re_potential_pot,
-                        "BESS [B]": rec.re_potential_bess,
-                        "S/s Evacuation Capacity [A-B]": rec.re_potential_evac,
-                    },
-                    expected_cod=rec.expected_cod,
-                    conn_granted={
-                        "220kV": rec.conn_granted_220,
-                        "400kV": rec.conn_granted_400,
-                        "Total": rec.conn_granted_total,
-                    },
-                    conn_under_process={
-                        "220kV": rec.conn_up_220,
-                        "400kV": rec.conn_up_400,
-                        "Total": rec.conn_up_total,
-                    },
-                    margin_for_connectivity={
-                        "220kV": rec.margin_conn_220,
-                        "400kV": rec.margin_conn_400,
-                        "Total": rec.margin_conn_total,
-                    },
-                    additional_margin_ict={
-                        "220kV": rec.margin_ict_220,
-                        "400kV": rec.margin_ict_400,
-                        "Total": rec.margin_ict_total,
-                    },
-                    gna_effectiveness=rec.gna_effectiveness,
-                )
-            )
+        rec.source_file = filename
+        if not rec.as_on_date:
+            rec.as_on_date = as_on
 
-    logger.info("[%s] [%s] %d record(s) extracted", kind.upper(), filename, len(final_records))
-    return final_records
+    logger.info("[%s] [%s] %d record(s) extracted", kind.upper(), filename, len(all_records))
+    return all_records
