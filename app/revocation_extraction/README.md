@@ -7,11 +7,19 @@ This pipeline extracts structured data from CTUIL's Regulation 24.6 Revocation P
 ```powershell
 uv run python -m app.revocation_extraction.run_revocation_extraction
 ```
+**Example:**
+```powershell
+uv run python -m app.revocation_extraction.run_revocation_extraction
+```
 **What it does:**
 Scans the `uploads/CTUIL-Revocations-PDFs` folder for all PDFs. It safely checks the existing `outputs/Revocations-24.6/revocations_extracted.json` file and **automatically skips** any PDFs that have already been extracted. It only runs AI extraction on *new* PDFs and appends their rows to your master JSON and Excel files.
 
 ## 2. Force Re-Extract Everything
 **Command:**
+```powershell
+uv run python -m app.revocation_extraction.run_revocation_extraction --force
+```
+**Example:**
 ```powershell
 uv run python -m app.revocation_extraction.run_revocation_extraction --force
 ```
@@ -21,6 +29,10 @@ Ignores the skip logic and re-extracts **every single PDF** in the folder from s
 ## 3. Extract or Update a Single PDF
 **Command:**
 ```powershell
+uv run python -m app.revocation_extraction.run_revocation_extraction --file "<filename.pdf>"
+```
+**Example:**
+```powershell
 uv run python -m app.revocation_extraction.run_revocation_extraction --file "01_Final list Jul'26.pdf"
 ```
 **What it does:**
@@ -28,6 +40,10 @@ Extracts only the specified PDF. This acts as an implicit `--force` for that spe
 
 ## 4. Test on a Limited Number of Recent PDFs
 **Command:**
+```powershell
+uv run python -m app.revocation_extraction.run_revocation_extraction --limit <number>
+```
+**Example:**
 ```powershell
 uv run python -m app.revocation_extraction.run_revocation_extraction --limit 2
 ```

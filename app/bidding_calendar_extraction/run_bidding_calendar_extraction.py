@@ -53,6 +53,23 @@ def _to_json(records: list[BiddingSchemeRecord]) -> list[dict]:
     return result
 
 
+def _load_existing_json(json_out: Path) -> list[BiddingSchemeRecord]:
+    """Load existing JSON into BiddingSchemeRecord instances to support appending."""
+    if not json_out.exists():
+        return []
+    try:
+        data = json.loads(json_out.read_text(encoding="utf-8"))
+        reverse_key = {v: k for k, v in _JSON_KEY.items()}
+        records = []
+        for d in data:
+            raw_d = {reverse_key.get(k, k): v for k, v in d.items()}
+            records.append(BiddingSchemeRecord(**raw_d))
+        return records
+    except Exception as exc:
+        logger.warning("Could not load existing JSON for appending: %s", exc)
+        return []
+
+
 def _print_summary(
     records: list[BiddingSchemeRecord],
     pdf_count: int,
@@ -90,8 +107,25 @@ def _process_files(
     json_out: Path,
     excel_out: Path,
     pages_per_chunk: int,
+    force: bool = False,
 ) -> list[BiddingSchemeRecord]:
-    all_records: list[BiddingSchemeRecord] = []
+    existing_records = _load_existing_json(json_out)
+    
+    if not force:
+        already_processed = {getattr(r, 'source_file', '') for r in existing_records}
+        skipped = [p for p in pdf_files if p.name in already_processed]
+        pdf_files = [p for p in pdf_files if p.name not in already_processed]
+        if skipped:
+            logger.info("Skipping %d already-extracted PDF(s). Use --force to re-extract.", len(skipped))
+        if not pdf_files:
+            logger.info("All selected PDFs are already extracted. Exiting.")
+            return existing_records
+
+    pdf_names = {p.name for p in pdf_files}
+    all_records = [r for r in existing_records if getattr(r, 'source_file', '') not in pdf_names]
+    
+    if existing_records:
+        logger.info("Loaded %d existing records (kept %d after filtering for overwrites)", len(existing_records), len(all_records))
 
     for pdf_path in sorted(pdf_files):
         logger.info("Processing: %s", pdf_path.name)
@@ -120,13 +154,20 @@ def _process_files(
     return all_records
 
 
-def run_pipeline(pages_per_chunk: int = 4) -> None:
-    pdf_files = list(PDF_INPUT_DIR.glob("*.pdf"))
+def run_pipeline(
+    pages_per_chunk: int = 4,
+    limit: int | None = None,
+    force: bool = False,
+) -> None:
+    pdf_files = sorted(list(PDF_INPUT_DIR.glob("*.pdf")))
     if not pdf_files:
         logger.error("No PDFs found in: %s", PDF_INPUT_DIR.resolve())
         sys.exit(1)
     logger.info("Found %d PDF file(s)", len(pdf_files))
-    _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk)
+    if limit is not None:
+        pdf_files = pdf_files[:limit]
+        logger.info("Limiting to most recent %d PDF(s)", limit)
+    _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk, force=force)
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
@@ -150,13 +191,31 @@ if __name__ == "__main__":
         default=4,
         help="Pages per LLM call (default: 4).",
     )
+    parser.add_argument(
+        "--limit", "-l",
+        type=str, default="all",
+        help="Number of most-recent PDFs to process. Default: all.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-extraction of already extracted PDFs.",
+    )
     args = parser.parse_args()
+
+    limit_val: int | None = None
+    if args.limit.lower() != "all":
+        try:
+            limit_val = int(args.limit)
+        except ValueError:
+            logger.error("Invalid limit '%s'. Must be an integer or 'all'.", args.limit)
+            sys.exit(1)
 
     if args.file:
         pdf_path = PDF_INPUT_DIR / args.file
         if not pdf_path.exists():
             logger.error("File not found: %s", pdf_path.resolve())
             sys.exit(1)
-        _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk)
+        _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk, force=True)
     else:
-        run_pipeline(pages_per_chunk=args.pages_per_chunk)
+        run_pipeline(pages_per_chunk=args.pages_per_chunk, limit=limit_val, force=args.force)

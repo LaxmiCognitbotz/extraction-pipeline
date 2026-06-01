@@ -52,6 +52,7 @@ from app.financial_closure_extraction.models import FileExtractionResult
 # ── Fixed output paths ────────────────────────────────────────────────────────
 PDF_INPUT_DIR  = Path("uploads/CTUIL-Compliance-PDFs")
 OUTPUT_DIR     = Path("outputs/CTUIL-Compliance")
+RAW_JSON_FILE  = OUTPUT_DIR / "ctuil_compliance_raw.json"
 JSON_OUT_FILE  = OUTPUT_DIR / "ctuil_compliance_extracted.json"
 EXCEL_OUT_FILE = OUTPUT_DIR / "ctuil_compliance_extracted.xlsx"
 
@@ -108,6 +109,17 @@ def _to_flat_json(results: list[FileExtractionResult]) -> list[dict]:
     return rows
 
 
+def _load_existing_raw(raw_path: Path) -> list[FileExtractionResult]:
+    if not raw_path.exists():
+        return []
+    try:
+        data = json.loads(raw_path.read_text(encoding="utf-8"))
+        return [FileExtractionResult(**item) for item in data]
+    except Exception as exc:
+        logger.warning("Could not load existing raw JSON for appending: %s", exc)
+        return []
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary printer
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,8 +166,25 @@ def _process_files(
     json_out: Path,
     excel_out: Path,
     pages_per_chunk: int,
+    force: bool = False,
 ) -> list[FileExtractionResult]:
-    results: list[FileExtractionResult] = []
+    existing_results = _load_existing_raw(RAW_JSON_FILE)
+    
+    if not force:
+        already_processed = {getattr(r, 'source_file', '') for r in existing_results}
+        skipped = [p for p in pdf_files if p.name in already_processed]
+        pdf_files = [p for p in pdf_files if p.name not in already_processed]
+        if skipped:
+            logger.info("Skipping %d already-extracted PDF(s). Use --force to re-extract.", len(skipped))
+        if not pdf_files:
+            logger.info("All selected PDFs are already extracted. Exiting.")
+            return existing_results
+
+    pdf_names = {p.name for p in pdf_files}
+    results = [r for r in existing_results if getattr(r, 'source_file', '') not in pdf_names]
+    
+    if existing_results:
+        logger.info("Loaded %d existing records (kept %d after filtering for overwrites)", len(existing_results), len(results))
 
     for pdf_path in pdf_files:
         logger.info("Processing: %s", pdf_path.name)
@@ -164,8 +193,12 @@ def _process_files(
         except Exception as exc:  # noqa: BLE001
             logger.error("FAILED [%s]: %s", pdf_path.name, exc, exc_info=True)
 
-    # Write flat JSON
     json_out.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Write raw JSON to enable future appends
+    RAW_JSON_FILE.write_text(json.dumps([r.model_dump() for r in results], ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Write flat JSON
     flat = _to_flat_json(results)
     json_out.write_text(
         json.dumps(flat, ensure_ascii=False, indent=2),
@@ -183,13 +216,20 @@ def _process_files(
     return results
 
 
-def run_pipeline(pages_per_chunk: int = 4) -> None:
+def run_pipeline(
+    pages_per_chunk: int = 4,
+    limit: int | None = None,
+    force: bool = False,
+) -> None:
     pdf_files = sorted(PDF_INPUT_DIR.glob("*.pdf"))
     if not pdf_files:
         logger.error("No PDFs found in: %s", PDF_INPUT_DIR.resolve())
         sys.exit(1)
     logger.info("Found %d PDF file(s)", len(pdf_files))
-    _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk)
+    if limit is not None:
+        pdf_files = pdf_files[:limit]
+        logger.info("Limiting to most recent %d PDF(s)", limit)
+    _process_files(pdf_files, JSON_OUT_FILE, EXCEL_OUT_FILE, pages_per_chunk, force=force)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,13 +256,31 @@ if __name__ == "__main__":
         default=4,
         help="Pages per LLM call (default: 4). Reduce to 2-3 on low-context VMs.",
     )
+    parser.add_argument(
+        "--limit", "-l",
+        type=str, default="all",
+        help="Number of most-recent PDFs to process. Default: all.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-extraction of already extracted PDFs.",
+    )
     args = parser.parse_args()
+
+    limit_val: int | None = None
+    if args.limit.lower() != "all":
+        try:
+            limit_val = int(args.limit)
+        except ValueError:
+            logger.error("Invalid limit '%s'. Must be an integer or 'all'.", args.limit)
+            sys.exit(1)
 
     if args.file:
         pdf_path = PDF_INPUT_DIR / args.file
         if not pdf_path.exists():
             logger.error("File not found: %s", pdf_path.resolve())
             sys.exit(1)
-        _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk)
+        _process_files([pdf_path], JSON_OUT_FILE, EXCEL_OUT_FILE, args.pages_per_chunk, force=True)
     else:
-        run_pipeline(pages_per_chunk=args.pages_per_chunk)
+        run_pipeline(pages_per_chunk=args.pages_per_chunk, limit=limit_val, force=args.force)
