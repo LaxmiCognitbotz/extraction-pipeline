@@ -402,3 +402,115 @@ def build_page_bundles_from_pdf(pdf_path: Path) -> list[tuple[int, str]]:
             bundle = build_page_bundle(page, i, total)
             result.append((i, bundle))
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bundle truncation  (loop-detection safety)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Hard cap on chars sent per LLM call.  Revocation PDFs with 30+ rows across
+# 3 pages easily exceed 20 000 chars and trigger pydantic-ai's loop detector.
+DEFAULT_MAX_BUNDLE_CHARS = 18_000
+
+
+def truncate_bundle(bundle: str, max_chars: int = DEFAULT_MAX_BUNDLE_CHARS) -> str:
+    """
+    Trim a page bundle to ``max_chars`` characters while preserving structure.
+
+    Strategy
+    ────────
+    1. Always keep every "=== PAGE TEXT ===" block intact — it is the primary
+       source of truth and is usually compact.
+    2. For "=== TABLE N ===" blocks, keep the [COLUMN PATHS] legend and the
+       header row, then include as many data rows as the budget allows.
+       Append "[TABLE TRUNCATED — refer to PAGE TEXT for remaining rows]" so
+       the LLM knows data was cut.
+    3. If the bundle is already within budget, return it unchanged.
+    """
+    if len(bundle) <= max_chars:
+        return bundle
+
+    logger.warning(
+        "Bundle is %d chars (limit %d) — truncating TABLE sections",
+        len(bundle), max_chars,
+    )
+
+    # Split on section markers, keeping the markers via a capture group.
+    import re as _re
+    section_re = _re.compile(
+        r"(=== PAGE TEXT ===|=== TABLE \d+ \(annotated markdown\) ===|=== NO TABLES DETECTED ===)"
+    )
+    tokens = section_re.split(bundle)
+    # tokens alternates: [pre, marker, body, marker, body, …]
+
+    out_parts: list[str] = []
+    budget = max_chars
+
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+
+        if tok.startswith("=== PAGE TEXT"):
+            # Always include page-text sections fully
+            body = tokens[i + 1] if (i + 1) < len(tokens) else ""
+            chunk = tok + "\n" + body
+            out_parts.append(chunk)
+            budget -= len(chunk)
+            i += 2
+
+        elif tok.startswith("=== TABLE"):
+            body = tokens[i + 1] if (i + 1) < len(tokens) else ""
+            if budget <= 0:
+                out_parts.append(tok + "\n[TABLE OMITTED — budget exhausted, refer to PAGE TEXT]\n")
+                i += 2
+                continue
+
+            # Keep legend + header + as many data rows as budget allows
+            lines = body.splitlines(keepends=True)
+            kept: list[str] = []
+            remaining = budget - len(tok) - 2  # header overhead
+
+            # Find where data rows start (after blank line following the legend)
+            past_legend = False
+            past_header = 0  # 0=header row not yet emitted, 1=emitted, 2=sep emitted
+            truncated = False
+
+            for line in lines:
+                if not past_legend:
+                    # Include legend lines and blank separator
+                    kept.append(line)
+                    remaining -= len(line)
+                    if line.strip() == "":
+                        past_legend = True
+                elif past_header < 2:
+                    # Include the pipe-table header + separator row unconditionally
+                    kept.append(line)
+                    remaining -= len(line)
+                    past_header += 1
+                else:
+                    # Data rows — include only if budget allows
+                    if remaining - len(line) >= 0:
+                        kept.append(line)
+                        remaining -= len(line)
+                    else:
+                        truncated = True
+                        break
+
+            body_kept = "".join(kept)
+            if truncated:
+                body_kept += "[TABLE TRUNCATED — refer to PAGE TEXT for remaining rows]\n"
+
+            chunk = tok + "\n" + body_kept
+            out_parts.append(chunk)
+            budget -= len(chunk)
+            i += 2
+
+        else:
+            # Pre-text (page header "--- PAGE N of M ---") — always include
+            out_parts.append(tok)
+            budget -= len(tok)
+            i += 1
+
+    result = "".join(out_parts)
+    logger.debug("Bundle truncated: %d → %d chars", len(bundle), len(result))
+    return result

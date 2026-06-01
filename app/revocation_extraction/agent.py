@@ -5,6 +5,15 @@ Extracts the 14 core columns that are common across all 9 PDF vintages.
 Page/table extraction is delegated to shared.pdf_table_extractor, which
 provides annotated-markdown tables with column-path legends, multi-row
 header detection, span carry-forward, and duplicate suppression.
+
+Loop-detection resilience
+─────────────────────────
+Large PDFs (30+ rows across 3 pages) can exceed ~20k chars and trigger
+pydantic-ai's loop detector.  The agent handles this with a 3-tier strategy:
+
+  Tier 1 — full bundle (normal call, pre-truncated to 18k chars).
+  Tier 2 — truncated bundle at 12k chars (smaller table window).
+  Tier 3 — truncated bundle + [ignoring loop detection] prefix (last resort).
 """
 
 from __future__ import annotations
@@ -18,7 +27,12 @@ import pdfplumber
 from pydantic_ai import Agent
 
 from shared.llm import get_model, ensure_api_key
-from shared.pdf_table_extractor import build_page_bundle, build_page_bundles_from_pdf
+from shared.pdf_table_extractor import (
+    build_page_bundle,
+    build_page_bundles_from_pdf,
+    truncate_bundle,
+    DEFAULT_MAX_BUNDLE_CHARS,
+)
 from app.revocation_extraction.models import PageExtractionResult, RevocationRecord
 
 logger = logging.getLogger(__name__)
@@ -35,6 +49,7 @@ Structural Context:
 - "=== TABLE N (annotated markdown) ===" contains the structured table with a [COLUMN PATHS]
   legend that maps every column index to its full header path (e.g. Col 3: Application ID).
   Use the legend to align values to fields; never rely on visual tab-position alone.
+- If a table section ends with "[TABLE TRUNCATED ...]", the remaining rows are in PAGE TEXT.
 
 Behavioral Rules:
 1. Read BOTH "=== PAGE TEXT ===" and "=== TABLE ===" for every page.
@@ -93,6 +108,69 @@ def _get_agent() -> Agent:
     return _agent
 
 
+# ── 3-tier single-page retry ──────────────────────────────────────────────────
+
+def _run_single_page_with_fallback(
+    agent: Agent,
+    pdf_path: Path,
+    pg_idx: int,                          # 0-based page index
+    total: int,
+    filename: str,
+    all_records: list,
+    detected_upto_ref: list,              # mutable [str | None] — shared ref
+) -> None:
+    """
+    Extract one page with a 3-tier loop-detection escalation:
+
+    Tier 1 — full bundle (pre-truncated to DEFAULT_MAX_BUNDLE_CHARS).
+    Tier 2 — aggressively truncated bundle (half the default limit).
+    Tier 3 — aggressively truncated + [ignoring loop detection] prefix.
+    """
+    page_num = pg_idx + 1
+
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        bundle = build_page_bundle(pdf.pages[pg_idx], page_num, total)
+
+    prompt_prefix = "Extract all revocation records:\n\n"
+
+    tiers = [
+        (DEFAULT_MAX_BUNDLE_CHARS,         False),   # Tier 1: normal truncation
+        (DEFAULT_MAX_BUNDLE_CHARS // 2,    False),   # Tier 2: aggressive truncation
+        (DEFAULT_MAX_BUNDLE_CHARS // 2,    True),    # Tier 3: + ignore tag
+    ]
+
+    for tier_num, (char_limit, ignore_loop) in enumerate(tiers, start=1):
+        current_bundle = truncate_bundle(bundle, max_chars=char_limit)
+        user_msg = (
+            ("[ignoring loop detection] " if ignore_loop else "")
+            + prompt_prefix
+            + current_bundle
+        )
+        try:
+            sub: PageExtractionResult = agent.run_sync(user_msg).output
+            if sub.upto_month and not detected_upto_ref[0]:
+                detected_upto_ref[0] = sub.upto_month
+            all_records.extend(sub.records)
+            if tier_num > 1:
+                logger.info("[%s] page %d recovered on tier-%d retry", filename, page_num, tier_num)
+            return  # success — stop escalating
+
+        except Exception as e:
+            err = str(e)
+            is_loop = "looping content" in err or "loop detection" in err.lower()
+            if is_loop and tier_num < len(tiers):
+                logger.warning(
+                    "[%s] page %d tier-%d loop detection — escalating to tier-%d",
+                    filename, page_num, tier_num, tier_num + 1,
+                )
+                continue
+            logger.error(
+                "[%s] page %d tier-%d failed: %s",
+                filename, page_num, tier_num, e, exc_info=True,
+            )
+            return  # exhausted all tiers — give up on this page
+
+
 # ── Main extraction function ──────────────────────────────────────────────────
 
 def extract_pdf_with_agent(
@@ -101,69 +179,60 @@ def extract_pdf_with_agent(
 ) -> list[RevocationRecord]:
     agent = _get_agent()
     filename = pdf_path.name
-    detected_upto: str | None = None
+    detected_upto_ref: list[str | None] = [None]   # mutable ref shared with fallback
     all_records: list[RevocationRecord] = []
 
     with pdfplumber.open(str(pdf_path)) as pdf:
         total = len(pdf.pages)
         logger.info("[%s]  %d page(s)", filename, total)
 
-        # Detect upto_month from the first page text
+        # Detect upto_month from the first page text early
         first_text = pdf.pages[0].extract_text(x_tolerance=3, y_tolerance=3) or ""
-        detected_upto = _extract_upto_month(first_text)
-        if detected_upto:
-            logger.info("[%s]  upto_month: %s", filename, detected_upto)
+        detected_upto_ref[0] = _extract_upto_month(first_text)
+        if detected_upto_ref[0]:
+            logger.info("[%s]  upto_month: %s", filename, detected_upto_ref[0])
 
-        # Build page bundles using the shared extractor (produces annotated markdown)
+        # Build and pre-truncate multi-page chunks
         page_bundles: list[str] = []
         for start in range(0, total, pages_per_chunk):
             chunk_parts: list[str] = []
-            for i, page in enumerate(pdf.pages[start: start + pages_per_chunk], start + 1):
-                chunk_parts.append(build_page_bundle(page, i, total))
-            page_bundles.append("\n".join(chunk_parts))
+            for j, page in enumerate(pdf.pages[start: start + pages_per_chunk], start + 1):
+                chunk_parts.append(build_page_bundle(page, j, total))
+            raw_bundle = "\n".join(chunk_parts)
+            page_bundles.append(truncate_bundle(raw_bundle))
 
     logger.info("[%s]  %d chunk(s) → LLM", filename, len(page_bundles))
 
     for i, bundle in enumerate(page_bundles, 1):
-        logger.info("[%s]  chunk %d/%d", filename, i, len(page_bundles))
+        logger.info("[%s]  chunk %d/%d  (%d chars)", filename, i, len(page_bundles), len(bundle))
         try:
             result: PageExtractionResult = agent.run_sync(
                 f"Extract all revocation records:\n\n{bundle}"
             ).output
 
-            if result.upto_month and not detected_upto:
-                detected_upto = result.upto_month
-
+            if result.upto_month and not detected_upto_ref[0]:
+                detected_upto_ref[0] = result.upto_month
             all_records.extend(result.records)
 
         except Exception as exc:
             err_str = str(exc)
             if "looping content" in err_str or "loop detection" in err_str.lower():
                 logger.warning(
-                    "[%s] chunk %d: loop detection — retrying 1 page at a time",
+                    "[%s] chunk %d: loop detection — retrying 1 page at a time with escalation",
                     filename, i,
                 )
                 start_page = (i - 1) * pages_per_chunk
                 end_page = min(start_page + pages_per_chunk, total)
                 for pg_idx in range(start_page, end_page):
-                    try:
-                        with pdfplumber.open(str(pdf_path)) as pdf:
-                            single = build_page_bundle(pdf.pages[pg_idx], pg_idx + 1, total)
-                        sub: PageExtractionResult = agent.run_sync(
-                            f"Extract all revocation records:\n\n{single}"
-                        ).output
-                        if sub.upto_month and not detected_upto:
-                            detected_upto = sub.upto_month
-                        all_records.extend(sub.records)
-                    except Exception as sub_exc:
-                        logger.error(
-                            "[%s] page %d retry failed: %s",
-                            filename, pg_idx + 1, sub_exc, exc_info=True,
-                        )
+                    _run_single_page_with_fallback(
+                        agent, pdf_path, pg_idx, total, filename,
+                        all_records, detected_upto_ref,
+                    )
             else:
                 logger.error("[%s] chunk %d failed: %s", filename, i, exc, exc_info=True)
 
     # Inject source_file and upto_month on every record
+    detected_upto = detected_upto_ref[0]
     final: list[RevocationRecord] = []
     for rec in all_records:
         d = rec.model_dump()

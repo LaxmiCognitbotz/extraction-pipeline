@@ -21,7 +21,7 @@ import pdfplumber
 from pydantic_ai import Agent
 
 from shared.llm import get_model, ensure_api_key
-from shared.pdf_table_extractor import build_page_bundle
+from shared.pdf_table_extractor import build_page_bundle, truncate_bundle, DEFAULT_MAX_BUNDLE_CHARS
 from app.re_margin_extraction.models import (
     NonRESubstationMarginResult,
     ProposedRESubstationMarginResult,
@@ -204,6 +204,70 @@ def _get_agent(kind: str) -> Agent:
 
 
 # =─────────────────────────────────────────────────────────────────────────────
+# 3-tier loop-detection fallback
+# =─────────────────────────────────────────────────────────────────────────────
+
+def _run_single_page_with_fallback(
+    agent: Agent,
+    pdf_path: Path,
+    pg_idx: int,
+    total: int,
+    kind: str,
+    filename: str,
+    all_records: list,
+    detected_date_ref: list,
+) -> None:
+    """
+    Extract one page with 3-tier loop-detection escalation:
+    Tier 1 — full bundle (DEFAULT_MAX_BUNDLE_CHARS).
+    Tier 2 — half-sized truncation.
+    Tier 3 — half-sized + [ignoring loop detection] prefix.
+    """
+    page_num = pg_idx + 1
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        bundle = build_page_bundle(pdf.pages[pg_idx], page_num, total)
+
+    prompt_prefix = "Extract all margin records:\n\n"
+    tiers = [
+        (DEFAULT_MAX_BUNDLE_CHARS,      False),
+        (DEFAULT_MAX_BUNDLE_CHARS // 2, False),
+        (DEFAULT_MAX_BUNDLE_CHARS // 2, True),
+    ]
+
+    for tier_num, (char_limit, ignore_loop) in enumerate(tiers, start=1):
+        current = truncate_bundle(bundle, max_chars=char_limit)
+        user_msg = (
+            ("[ignoring loop detection] " if ignore_loop else "")
+            + prompt_prefix + current
+        )
+        try:
+            sub_result = agent.run_sync(user_msg).output
+            if sub_result.as_on_date and not detected_date_ref[0]:
+                detected_date_ref[0] = sub_result.as_on_date
+            all_records.extend(sub_result.records)
+            if tier_num > 1:
+                logger.info(
+                    "[%s] [%s] page %d recovered on tier-%d",
+                    kind.upper(), filename, page_num, tier_num,
+                )
+            return
+        except Exception as e:
+            err = str(e)
+            is_loop = "looping content" in err or "loop detection" in err.lower()
+            if is_loop and tier_num < len(tiers):
+                logger.warning(
+                    "[%s] [%s] page %d tier-%d loop — escalating",
+                    kind.upper(), filename, page_num, tier_num,
+                )
+                continue
+            logger.error(
+                "[%s] [%s] page %d tier-%d failed: %s",
+                kind.upper(), filename, page_num, tier_num, e, exc_info=True,
+            )
+            return
+
+
+# =─────────────────────────────────────────────────────────────────────────────
 # Extraction functions
 # =─────────────────────────────────────────────────────────────────────────────
 
@@ -221,7 +285,7 @@ def extract_margin_pdf(
     agent = _get_agent(kind)
     filename = pdf_path.name
     filename_date = _date_from_filename(filename)
-    detected_date: str | None = None
+    detected_date_ref: list[str | None] = [None]
     all_records = []
 
     with pdfplumber.open(str(pdf_path)) as pdf:
@@ -233,7 +297,8 @@ def extract_margin_pdf(
             parts: list[str] = []
             for i, page in enumerate(pdf.pages[start: start + pages_per_chunk], start + 1):
                 parts.append(build_page_bundle(page, i, total))
-            bundles.append("\n".join(parts))
+            raw_bundle = "\n".join(parts)
+            bundles.append(truncate_bundle(raw_bundle))
 
     logger.info("[%s] [%s] %d chunk(s) → LLM", kind.upper(), filename, len(bundles))
 
@@ -244,39 +309,29 @@ def extract_margin_pdf(
                 f"Extract all margin records:\n\n{bundle}"
             ).output
 
-            if result.as_on_date and not detected_date:
-                detected_date = result.as_on_date
+            if result.as_on_date and not detected_date_ref[0]:
+                detected_date_ref[0] = result.as_on_date
             all_records.extend(result.records)
 
         except Exception as exc:
             err_str = str(exc)
             if "looping content" in err_str or "loop detection" in err_str.lower():
                 logger.warning(
-                    "[%s] [%s] chunk %d: loop detection triggered — retrying 1 page at a time",
+                    "[%s] [%s] chunk %d: loop detection — retrying 1 page at a time with escalation",
                     kind.upper(), filename, i,
                 )
                 start_page = (i - 1) * pages_per_chunk
                 end_page = min(start_page + pages_per_chunk, total)
                 for pg_idx in range(start_page, end_page):
-                    try:
-                        with pdfplumber.open(str(pdf_path)) as pdf:
-                            single_bundle = build_page_bundle(pdf.pages[pg_idx], pg_idx + 1, total)
-                        sub_result = agent.run_sync(
-                            f"Extract all margin records:\n\n{single_bundle}"
-                        ).output
-                        if sub_result.as_on_date and not detected_date:
-                            detected_date = sub_result.as_on_date
-                        all_records.extend(sub_result.records)
-                    except Exception as sub_exc:
-                        logger.error(
-                            "[%s] [%s] page %d retry failed: %s",
-                            kind.upper(), filename, pg_idx + 1, sub_exc, exc_info=True,
-                        )
+                    _run_single_page_with_fallback(
+                        agent, pdf_path, pg_idx, total, kind, filename,
+                        all_records, detected_date_ref,
+                    )
             else:
                 logger.error("[%s] [%s] chunk %d failed: %s", kind.upper(), filename, i, exc, exc_info=True)
 
     # Finalize dates and inject metadata
-    as_on = detected_date or filename_date
+    as_on = detected_date_ref[0] or filename_date
     final_records = []
     for rec in all_records:
         d = rec.model_dump()
