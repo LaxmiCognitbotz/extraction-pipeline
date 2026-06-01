@@ -146,14 +146,18 @@ def _build_col_paths(header_rows: list[list[str]], num_cols: int) -> list[str]:
                 else:
                     paths[col_idx] = segment
             else:
-                # Empty cell — carry the root label of the nearest non-empty
-                # column to the left (span carry-forward).
-                if col_idx > 0 and not paths[col_idx]:
-                    # Find nearest non-empty col to the left in THIS header row
+                # Empty cell — carry the segment from the nearest non-empty
+                # column to the left in THIS header row (span carry-forward).
+                if col_idx > 0:
                     for look in range(col_idx - 1, -1, -1):
                         if look < len(h_row) and h_row[look].strip():
-                            root = paths[look].split(" > ")[0]
-                            paths[col_idx] = root
+                            segment = h_row[look].strip()
+                            if paths[col_idx]:
+                                last_seg = paths[col_idx].rsplit(" > ", 1)[-1]
+                                if last_seg != segment:
+                                    paths[col_idx] += " > " + segment
+                            else:
+                                paths[col_idx] = segment
                             break
 
     return paths
@@ -211,7 +215,17 @@ def table_to_annotated_markdown(table: list[list[Any]]) -> str:
     # ── Step 4: split header rows from data rows ─────────────────────────────
     header_rows: list[list[str]] = []
     idx = 0
+    seen_multi_cell = False
     while idx < len(cleaned) and _row_is_header(cleaned[idx]):
+        non_empty_count = sum(1 for c in cleaned[idx] if c.strip())
+        
+        # If we see a single-cell row AFTER seeing a multi-cell row, it's a category data row (e.g. "Gujarat")
+        if seen_multi_cell and non_empty_count == 1:
+            break
+            
+        if non_empty_count > 1:
+            seen_multi_cell = True
+            
         header_rows.append(cleaned[idx])
         idx += 1
     data_rows = cleaned[idx:]

@@ -77,7 +77,10 @@ def _build_system_prompt(kind: str) -> str:
         f"{num_start}. Never skip any {row_noun} rows.",
         f"{num_start + 1}. If a cell contains '0' (zero), extract it as '0'. "
         "Do NOT convert '0' to null. Only blank cells, dashes '-', or spaces should be null.",
-        f"{num_start + 2}. Extract all field values exactly as printed in the source.",
+        f"{num_start + 2}. If a row is clearly a 'Total' row (e.g., 'Total GUJ:', 'Total MAH:'), completely SKIP and IGNORE it. Do not extract it as a {row_noun}.",
+        f"{num_start + 3}. For the 'Name of station' field, extract ONLY the actual substation name. Strip off any trailing voltage levels (e.g., convert 'Navinal (GIS) 765/400kV' to 'Navinal (GIS)', and 'Aurangabad 765/400/220kV' to 'Aurangabad').",
+        f"{num_start + 4}. For 'Existing / UC/ Planned MVA Capacity', if there are multiple lines/newlines, replace the newline with a comma (e.g., '6x1500MVA, 765/400kV \\n1x500MVA' -> '6x1500MVA, 765/400kV, 1x500MVA').",
+        f"{num_start + 5}. Extract all other field values exactly as printed in the source.",
     ]
     rules_block = "Rules:\n" + "\n".join(fixed_rules)
 
