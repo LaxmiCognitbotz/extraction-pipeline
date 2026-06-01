@@ -407,3 +407,122 @@ def get_schema_info(kind: str) -> dict:
     if cls is None:
         raise ValueError(f"Unknown kind '{kind}'. Valid: {list(_KIND_TO_RECORD)}")
     return cls.schema_info()
+
+
+# =─────────────────────────────────────────────────────────────────────────────
+# FLAT EXTRACTION MODELS (to prevent duplicate columns and nesting confusion for LLM)
+# =─────────────────────────────────────────────────────────────────────────────
+
+class FlatNonRESubstationMarginRecord(BaseModel):
+    """Flat extraction model for Non-RE Substations."""
+    state: Optional[str] = Field(None, alias="State", description="State name (e.g., Gujarat, Maharashtra) — carry forward if the cell is empty but a previous row established a state.")
+    station_name: Optional[str] = Field(None, alias="Name of station", description="Substation name. Strip off trailing voltage levels.")
+    mva_capacity: Optional[str] = Field(None, alias="Existing / UC/ Planned MVA Capacity")
+    allocated_under_process_mw: Optional[str] = Field(None, alias="Capacity Allocated/ Under Process (MW)")
+    
+    additional_margin_existing_220kv: Optional[str] = Field(None, alias="Additional Margin on existing / UC system > 220kV level")
+    additional_margin_existing_400kv: Optional[str] = Field(None, alias="Additional Margin on existing / UC system > 400kV level")
+    
+    bays_req_existing_220kv: Optional[str] = Field(None, alias="Line Bays required for RE integration > 220kV level")
+    bays_req_existing_400kv: Optional[str] = Field(None, alias="Line Bays required for RE integration > 400kV level")
+    
+    additional_margin_ict_220kv: Optional[str] = Field(None, alias="Additional Margin with ICT Augmentation > 220kV level")
+    additional_margin_ict_400kv: Optional[str] = Field(None, alias="Additional Margin with ICT Augmentation > 400kV level")
+    
+    bays_req_ict_220kv: Optional[str] = Field(None, alias="Line Bays required for RE integration (ICT Augmentation) > 220kV level")
+    bays_req_ict_400kv: Optional[str] = Field(None, alias="Line Bays required for RE integration (ICT Augmentation) > 400kV level")
+    
+    no_of_trfs_required: Optional[str] = Field(None, alias="No. of Trfs required for RE integration")
+    remarks: Optional[str] = Field(None, alias="Remarks / Total Addl. Margins")
+
+    class Config:
+        populate_by_name = True
+
+
+class FlatNonRESubstationMarginResult(BaseModel):
+    as_on_date: Optional[str] = Field(None, alias="As On Date")
+    records: list[FlatNonRESubstationMarginRecord] = Field(default_factory=list)
+
+    class Config:
+        populate_by_name = True
+
+
+class FlatProposedRESubstationMarginRecord(BaseModel):
+    """Flat extraction model for Proposed RE Substations."""
+    state: Optional[str] = Field(None, alias="State", description="State name header — carry forward.")
+    station_name: Optional[str] = Field(None, alias="Name of station", description="Substation name. Strip off trailing voltage levels.")
+    
+    tc_existing_765_400: Optional[str] = Field(None, alias="Transformation Capacity (MVA) > Existing > 765/400kV")
+    tc_existing_400_220: Optional[str] = Field(None, alias="Transformation Capacity (MVA) > Existing > 400/220kV or 400/132kV")
+    
+    tc_ui_765_400: Optional[str] = Field(None, alias="Transformation Capacity (MVA) > Under Implementation > 765/400kV")
+    tc_ui_400_220: Optional[str] = Field(None, alias="Transformation Capacity (MVA) > Under Implementation > 400/220kV")
+    
+    tc_planned_765_400: Optional[str] = Field(None, alias="Transformation Capacity (MVA) > Planned > 765/400kV")
+    tc_planned_400_220: Optional[str] = Field(None, alias="Transformation Capacity (MVA) > Planned > 400/220kV")
+    
+    allocated_mw: Optional[str] = Field(None, alias="Capacity Allocated (MW)")
+    
+    additional_margin_existing_220kv: Optional[str] = Field(None, alias="Additional Margin on existing / UC system > 220kV level")
+    additional_margin_existing_400kv: Optional[str] = Field(None, alias="Additional Margin on existing / UC system > 400kV level")
+    
+    additional_margin_ict_220kv: Optional[str] = Field(None, alias="Additional Margin with ICT Augmentation > 220kV level")
+    additional_margin_ict_400kv: Optional[str] = Field(None, alias="Additional Margin with ICT Augmentation > 400kV level")
+    
+    no_of_trfs_required: Optional[str] = Field(None, alias="No. of Trfs required for RE integration")
+    remarks: Optional[str] = Field(None, alias="Remarks")
+
+    class Config:
+        populate_by_name = True
+
+
+class FlatProposedRESubstationMarginResult(BaseModel):
+    as_on_date: Optional[str] = Field(None, alias="As On Date")
+    records: list[FlatProposedRESubstationMarginRecord] = Field(default_factory=list)
+
+    class Config:
+        populate_by_name = True
+
+
+class FlatRESubstationMarginRecord(BaseModel):
+    """Flat extraction model for RE Substations."""
+    region: Optional[str] = Field(None, alias="Region", description="Region name header (e.g. Northern Region) — carry forward.")
+    category: Optional[str] = Field(None, alias="Category", description="Category header (e.g. Existing RE Pooling Stations) — carry forward.")
+    pooling_station: Optional[str] = Field(None, alias="Pooling Station")
+    state: Optional[str] = Field(None, alias="State")
+    
+    re_potential_pot: Optional[str] = Field(None, alias="RE Potential (MW) > RE Potential [A]")
+    re_potential_bess: Optional[str] = Field(None, alias="RE Potential (MW) > BESS [B]")
+    re_potential_evac: Optional[str] = Field(None, alias="RE Potential (MW) > S/s Evacuation Capacity [A-B]")
+    
+    expected_cod: Optional[str] = Field(None, alias="Expected CoD")
+    
+    conn_granted_220: Optional[str] = Field(None, alias="Connectivity Granted / Agreed (MW) > 220kV")
+    conn_granted_400: Optional[str] = Field(None, alias="Connectivity Granted / Agreed (MW) > 400kV")
+    conn_granted_total: Optional[str] = Field(None, alias="Connectivity Granted / Agreed (MW) > Total")
+    
+    conn_up_220: Optional[str] = Field(None, alias="Connectivity Under Process (MW) > 220kV")
+    conn_up_400: Optional[str] = Field(None, alias="Connectivity Under Process (MW) > 400kV")
+    conn_up_total: Optional[str] = Field(None, alias="Connectivity Under Process (MW) > Total")
+    
+    margin_conn_220: Optional[str] = Field(None, alias="Margin for Connectivity (MW) > 220kV")
+    margin_conn_400: Optional[str] = Field(None, alias="Margin for Connectivity (MW) > 400kV")
+    margin_conn_total: Optional[str] = Field(None, alias="Margin for Connectivity (MW) > Total")
+    
+    margin_ict_220: Optional[str] = Field(None, alias="Additional Margin for Connectivity requiring ICT Augmentation / additional Tr. System (MW) > 220kV")
+    margin_ict_400: Optional[str] = Field(None, alias="Additional Margin for Connectivity requiring ICT Augmentation / additional Tr. System (MW) > 400kV")
+    margin_ict_total: Optional[str] = Field(None, alias="Additional Margin for Connectivity requiring ICT Augmentation / additional Tr. System (MW) > Total")
+    
+    gna_effectiveness: Optional[str] = Field(None, alias="Effectiveness of GNA for Capacity mentioned under 'Margin for Connectivity'")
+
+    class Config:
+        populate_by_name = True
+
+
+class FlatRESubstationMarginResult(BaseModel):
+    as_on_date: Optional[str] = Field(None, alias="As On Date")
+    records: list[FlatRESubstationMarginRecord] = Field(default_factory=list)
+
+    class Config:
+        populate_by_name = True
+
