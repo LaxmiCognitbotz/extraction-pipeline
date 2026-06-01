@@ -125,39 +125,42 @@ def _build_col_paths(header_rows: list[list[str]], num_cols: int) -> list[str]:
     Algorithm:
     1. Walk header rows top-to-bottom.
     2. For each cell, if non-empty: append to that column's path with " > ".
-    3. If empty: look left to find the nearest non-empty ancestor and carry
-       its *top-level* label forward (span simulation).
+    3. If empty: look left to find the nearest non-empty ancestor. We ONLY carry
+       forward the segment if the current column and the look-left column shared
+       the EXACT SAME path before this row (i.e. they are under the same parent span).
     4. Repeated identical path segments are deduplicated.
     """
     paths: list[str] = [""] * num_cols
 
     for h_row in header_rows:
-        # Find the last non-empty cell index for span-carry logic
+        # Snapshot paths before this row to enforce parent-span boundaries
+        prev_paths = paths.copy()
+        
         for col_idx in range(num_cols):
             cell = h_row[col_idx].strip() if col_idx < len(h_row) else ""
 
             if cell:
                 segment = cell
                 if paths[col_idx]:
-                    # Avoid repeating the same segment (some PDFs repeat header)
                     last_seg = paths[col_idx].rsplit(" > ", 1)[-1]
                     if last_seg != segment:
                         paths[col_idx] += " > " + segment
                 else:
                     paths[col_idx] = segment
             else:
-                # Empty cell — carry the segment from the nearest non-empty
-                # column to the left in THIS header row (span carry-forward).
+                # Empty cell — check if it can receive a span from the left
                 if col_idx > 0:
                     for look in range(col_idx - 1, -1, -1):
                         if look < len(h_row) and h_row[look].strip():
-                            segment = h_row[look].strip()
-                            if paths[col_idx]:
-                                last_seg = paths[col_idx].rsplit(" > ", 1)[-1]
-                                if last_seg != segment:
-                                    paths[col_idx] += " > " + segment
-                            else:
-                                paths[col_idx] = segment
+                            # Only span if they share the same parent hierarchy
+                            if prev_paths[look] == prev_paths[col_idx]:
+                                segment = h_row[look].strip()
+                                if paths[col_idx]:
+                                    last_seg = paths[col_idx].rsplit(" > ", 1)[-1]
+                                    if last_seg != segment:
+                                        paths[col_idx] += " > " + segment
+                                else:
+                                    paths[col_idx] = segment
                             break
 
     return paths

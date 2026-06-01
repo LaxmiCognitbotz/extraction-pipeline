@@ -87,10 +87,12 @@ def _build_system_prompt(kind: str) -> str:
     # ── 3. Nested-column-mapping block ───────────────────────────────────
     nested_lines: list[str] = [
         "CRITICAL — Nested Column Mapping (read carefully):",
-        "The TABLE includes a \"[COLUMN PATHS]\" legend mapping Col N to nested JSON keys.",
-        "Format:  Col N: Parent Column > Sub-column  (or Parent > Mid > Sub)",
-        "You MUST use this legend to place each cell in the correct nested JSON object.",
-        "Do NOT treat sub-column header rows as data rows — they are encoded in the legend.",
+        "The TABLE headers in the Markdown grid may be split across multiple rows due to merged cells.",
+        "You MUST carefully map the sub-columns to their parent columns based on their visual alignment in the Markdown.",
+        "",
+        "IMPORTANT RULES FOR MATCHING COLUMNS:",
+        "- Ignore minor spelling mistakes or newlines in the table headers (e.g., 'Aditional Margin' matches 'Additional Margin').",
+        "- If two columns have the exact same label but you expect one to be for ICT Augmentation, map them based on their logical left-to-right ordering in the table.",
         "",
         "Expected nested column groups for this report type:",
     ]
@@ -212,8 +214,8 @@ def _get_agent(kind: str) -> Agent:
 
 def _run_single_page_with_fallback(
     agent: Agent,
-    pdf_path: Path,
-    pg_idx: int,
+    page_md: str,
+    page_num: int,
     total: int,
     kind: str,
     filename: str,
@@ -226,10 +228,7 @@ def _run_single_page_with_fallback(
     Tier 2 — half-sized truncation.
     Tier 3 — half-sized + [ignoring loop detection] prefix.
     """
-    page_num = pg_idx + 1
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        bundle = build_page_bundle(pdf.pages[pg_idx], page_num, total)
-
+    bundle = f"=== PAGE {page_num} of {total} ===\n{page_md}"
     prompt_prefix = "Extract all margin records:\n\n"
     tiers = [
         (DEFAULT_MAX_BUNDLE_CHARS,      False),
@@ -280,10 +279,7 @@ def extract_margin_pdf(
     pages_per_chunk: int = 4,
 ) -> list[Any]:
     """
-    Extract all margin records from a single margin PDF based on kind:
-    - 'non-re'
-    - 'proposed-re'
-    - 're-substations'
+    Extract all margin records from a single margin PDF using opendataloader-pdf
     """
     agent = _get_agent(kind)
     filename = pdf_path.name
@@ -291,17 +287,42 @@ def extract_margin_pdf(
     detected_date_ref: list[str | None] = [None]
     all_records = []
 
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        total = len(pdf.pages)
-        logger.info("[%s] [%s] %d page(s)", kind.upper(), filename, total)
+    # Step 1: Generate Markdown using opendataloader-pdf
+    md_out_dir = Path("outputs/RE-Margin/Markdown")
+    md_out_dir.mkdir(parents=True, exist_ok=True)
+    generated_md_path = md_out_dir / (pdf_path.stem + ".md")
 
-        bundles: list[str] = []
-        for start in range(0, total, pages_per_chunk):
-            parts: list[str] = []
-            for i, page in enumerate(pdf.pages[start: start + pages_per_chunk], start + 1):
-                parts.append(build_page_bundle(page, i, total))
-            raw_bundle = "\n".join(parts)
-            bundles.append(truncate_bundle(raw_bundle))
+    logger.info("[%s] [%s] Converting PDF to Markdown...", kind.upper(), filename)
+    import opendataloader_pdf
+    opendataloader_pdf.convert(
+        str(pdf_path),
+        format='markdown',
+        markdown_page_separator='\n\n--- PAGE %page-number% ---\n\n',
+        output_dir=str(md_out_dir),
+        quiet=True
+    )
+    logger.info("[%s] [%s] Markdown saved to %s", kind.upper(), filename, generated_md_path)
+
+    # Step 2: Read Markdown and split into pages
+    with open(generated_md_path, "r", encoding="utf-8") as f:
+        md_content = f.read()
+
+    import re
+    # Split by the separator we defined
+    pages_raw = re.split(r'\n\n--- PAGE \d+ ---\n\n', md_content)
+    # The first element might be empty or pre-page-1 junk, keep only non-empty
+    pages = [p.strip() for p in pages_raw if p.strip()]
+    total = len(pages)
+    logger.info("[%s] [%s] %d page(s) extracted via Markdown", kind.upper(), filename, total)
+
+    # Step 3: Chunk pages and feed to LLM
+    bundles: list[str] = []
+    for start in range(0, total, pages_per_chunk):
+        parts: list[str] = []
+        for i, page_md in enumerate(pages[start: start + pages_per_chunk], start + 1):
+            parts.append(f"=== PAGE {i + start + 1} of {total} ===\n{page_md}")
+        raw_bundle = "\n\n".join(parts)
+        bundles.append(truncate_bundle(raw_bundle))
 
     logger.info("[%s] [%s] %d chunk(s) → LLM", kind.upper(), filename, len(bundles))
 
@@ -327,7 +348,7 @@ def extract_margin_pdf(
                 end_page = min(start_page + pages_per_chunk, total)
                 for pg_idx in range(start_page, end_page):
                     _run_single_page_with_fallback(
-                        agent, pdf_path, pg_idx, total, kind, filename,
+                        agent, pages[pg_idx], pg_idx + 1, total, kind, filename,
                         all_records, detected_date_ref,
                     )
             else:

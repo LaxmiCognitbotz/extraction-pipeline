@@ -19,4 +19,5 @@ dependencies = [
     "groq>=0.4.0",
     "httpx>=0.28.1",
     "langextract[openai]>=1.5.0",
+    "opendataloader-pdf>=2.4.7",
 ]
