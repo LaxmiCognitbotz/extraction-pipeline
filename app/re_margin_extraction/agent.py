@@ -276,7 +276,7 @@ def _run_single_page_with_fallback(
 def extract_margin_pdf(
     pdf_path: Path,
     kind: str,
-    pages_per_chunk: int = 4,
+    pages_per_chunk: int = 1,
 ) -> list[Any]:
     """
     Extract all margin records from a single margin PDF using opendataloader-pdf
@@ -308,8 +308,8 @@ def extract_margin_pdf(
         md_content = f.read()
 
     import re
-    # Split by the separator we defined
-    pages_raw = re.split(r'\n\n--- PAGE \d+ ---\n\n', md_content)
+    # Split by the separator we defined, allowing optional whitespace/newlines
+    pages_raw = re.split(r'(?:\r?\n)*--- PAGE \d+ ---(?:\r?\n)*', md_content)
     # The first element might be empty or pre-page-1 junk, keep only non-empty
     pages = [p.strip() for p in pages_raw if p.strip()]
     total = len(pages)
