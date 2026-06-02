@@ -330,6 +330,15 @@ class RESubstationMarginRecord(BaseModel):
     @classmethod
     def ensure_nested_objects(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            import re
+            category_val = data.get("Category") or data.get("category")
+            if category_val and isinstance(category_val, str):
+                cleaned = re.sub(r"^[A-Z]\.\s*", "", category_val).strip()
+                if "Category" in data:
+                    data["Category"] = cleaned
+                if "category" in data:
+                    data["category"] = cleaned
+
             for key in [
                 "RE Potential (MW)",
                 "Connectivity Granted / Agreed (MW)",

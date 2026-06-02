@@ -77,11 +77,20 @@ def _build_system_prompt(kind: str) -> str:
         f"{num_start}. Never skip any {row_noun} rows.",
         f"{num_start + 1}. If a cell contains '0' (zero), extract it as '0'. "
         "Do NOT convert '0' to null. Only blank cells, dashes '-', or spaces should be null.",
-        f"{num_start + 2}. If a row is clearly a 'Total' row (e.g., 'Total GUJ:', 'Total MAH:'), completely SKIP and IGNORE it. Do not extract it as a {row_noun}.",
+        f"{num_start + 2}. If a row is clearly a 'Total' or 'Sub-total' row (e.g., 'Total GUJ:', 'Total MAH:', 'Sub-total'), completely SKIP and IGNORE it. Do not extract it as a {row_noun}.",
         f"{num_start + 3}. For the 'Name of station' field, extract ONLY the actual substation name. Strip off any trailing voltage levels (e.g., convert 'Navinal (GIS) 765/400kV' to 'Navinal (GIS)', and 'Aurangabad 765/400/220kV' to 'Aurangabad').",
         f"{num_start + 4}. For 'Existing / UC/ Planned MVA Capacity', if there are multiple lines/newlines, replace the newline with a comma (e.g., '6x1500MVA, 765/400kV \\n1x500MVA' -> '6x1500MVA, 765/400kV, 1x500MVA').",
         f"{num_start + 5}. Extract all other field values exactly as printed in the source.",
     ]
+
+    if kind == "re-substations":
+        fixed_rules.append(
+            f"{num_start + 6}. Summary/Complex row skipping: If a row represents a 'Complex' (e.g., contains 'Complex' in its name, like 'Bhadla Complex' or 'Fatehgarh-Barmer Complex' or 'Bikaner Complex') AND has specific individual sub-stations/sub-rows listed directly underneath it (usually indexed with letters like 'a', 'b', 'c' under the Complex's main Sl. No.), you MUST skip and IGNORE the main Complex summary row itself. Only extract the individual detailed sub-stations underneath it (e.g., extract 'Bhadla' and 'Bhadla-II', but skip 'Bhadla Complex'). However, if a Complex row does NOT have any sub-stations/sub-rows listed underneath it, then you must extract it."
+        )
+        fixed_rules.append(
+            f"{num_start + 7}. Clean the Category field: Strip any leading letter index from it (e.g., convert 'A. Existing RE Pooling Stations' to 'Existing RE Pooling Stations', and 'B. Commissioning between Jul-25 to Dec-25' to 'Commissioning between Jul-25 to Dec-25')."
+        )
+
     rules_block = "Rules:\n" + "\n".join(fixed_rules)
 
     # ── 3. Nested-column-mapping block ───────────────────────────────────
