@@ -85,7 +85,8 @@ def _build_system_prompt(kind: str) -> str:
 
     if kind == "re-substations":
         fixed_rules.append(
-            f"{num_start + 6}. Summary/Complex row skipping: If a row represents a 'Complex' (e.g., contains 'Complex' in its name, like 'Bhadla Complex' or 'Fatehgarh-Barmer Complex' or 'Bikaner Complex') AND has specific individual sub-stations/sub-rows listed directly underneath it (usually indexed with letters like 'a', 'b', 'c' under the Complex's main Sl. No.), you MUST skip and IGNORE the main Complex summary row itself. Only extract the individual detailed sub-stations underneath it (e.g., extract 'Bhadla' and 'Bhadla-II', but skip 'Bhadla Complex'). However, if a Complex row does NOT have any sub-stations/sub-rows listed underneath it, then you must extract it."
+            f"{num_start + 6}. Summary/Complex row skipping: If a row represents a parent 'Complex' (e.g., its name is exactly 'Bhadla Complex', 'Fatehgarh-Barmer Complex', 'Bikaner Complex', or similar, without any other substation names) AND it has specific individual sub-stations/sub-rows listed directly underneath it (usually indexed with letters like 'a', 'b', 'c' under the Complex's main Sl. No.), you MUST skip and IGNORE the main parent Complex summary row itself. Only extract the individual detailed sub-stations underneath it (e.g., extract 'Bhadla' and 'Bhadla-II', but skip 'Bhadla Complex').\n"
+            "CRITICAL: Do NOT skip any row if its name contains a specific substation designation after the complex name. For example, '(Fatehgarh-Barmer Complex) Barmer-I', '(Fatehgarh-Barmer Complex) Barmer-II', '(Fatehgarh-Barmer Complex) Fatehgarh-IV (Section-II)', '(Bikaner Complex) Bikaner-IV', or '(Bikaner Complex) Bikaner-VI' are NOT parent complex rows and MUST be extracted."
         )
         fixed_rules.append(
             f"{num_start + 7}. Clean the Category field: Strip any leading letter index from it (e.g., convert 'A. Existing RE Pooling Stations' to 'Existing RE Pooling Stations', and 'B. Commissioning between Jul-25 to Dec-25' to 'Commissioning between Jul-25 to Dec-25')."
@@ -318,24 +319,28 @@ def _run_single_page_with_fallback(
 def detect_page_kind(page_text: str, default_kind: str) -> str:
     text_lower = page_text.lower()
     
-    # Check for RE Pooling Stations first
+    # 1. New RE Substations format (contains specific new columns)
     if (
-        "pooling stations" in text_lower 
-        or "re ps category" in text_lower 
-        or "pooling station capacity" in text_lower
-        or "re potential" in text_lower
+        "re potential" in text_lower
         or "connectivity granted" in text_lower
         or "margin for connectivity" in text_lower
-        or "additional margin for connectivity" in text_lower
+        or "effectiveness of gna" in text_lower
+        or "connectivity under process" in text_lower
     ):
         return "re-substations"
         
-    # Check for Non-RE vs Proposed RE
-    # Proposed RE has columns: "Transformation Capacity (MVA)"
-    if "transformation capacity (mva)" in text_lower:
+    # 2. Old Proposed RE format
+    if (
+        "transformation capacity (mva)" in text_lower
+        or "capacity allocated (mw)" in text_lower
+        or "no. of trfs required" in text_lower
+        or "additional margin on existing" in text_lower
+        or "aditional margin on existing" in text_lower
+        or "additional margin with ict" in text_lower
+    ):
         return "proposed-re"
         
-    # Non-RE has columns: "Existing / UC/ Planned MVA Capacity" or "Remarks / Total Addl. Margins"
+    # 3. Non-RE format
     if (
         "existing / uc/ planned mva capacity" in text_lower 
         or "remarks / total addl. margins" in text_lower
@@ -443,6 +448,65 @@ def extract_margin_pdf(
         rec.source_file = filename
         if not rec.as_on_date:
             rec.as_on_date = as_on
+
+    # Programmatic carry-forward for fields defined in the record's schema_info()
+    if all_records:
+        first_rec = all_records[0]
+        if hasattr(first_rec, "schema_info"):
+            cf_keys = [k for k, _ in first_rec.schema_info().get("carry_forward", [])]
+            if cf_keys:
+                current_values = {k: None for k in cf_keys}
+                for rec in all_records:
+                    for key in cf_keys:
+                        # Find the actual Pydantic attribute name for this alias key
+                        attr_name = None
+                        for fname, finfo in type(rec).model_fields.items():
+                            alias = finfo.alias or fname
+                            if alias == key:
+                                attr_name = fname
+                                break
+                        if attr_name:
+                            val = getattr(rec, attr_name, None)
+                            if val and str(val).strip():
+                                current_values[key] = val
+                            else:
+                                setattr(rec, attr_name, current_values[key])
+
+    # Programmatic filtering of duplicate/summary parent complex rows
+    if all_records:
+        to_remove = set()
+        pooling_stations = [
+            getattr(r, "pooling_station", None)
+            for r in all_records
+            if getattr(r, "pooling_station", None)
+        ]
+        if pooling_stations:
+            for idx, rec in enumerate(all_records):
+                ps_name = getattr(rec, "pooling_station", None)
+                if not ps_name:
+                    continue
+                name = ps_name.strip()
+                if name.lower().endswith(" complex"):
+                    base = name[:-8].strip()
+                    base_lower = base.lower()
+                    
+                    has_children = False
+                    for other_name in pooling_stations:
+                        if other_name == ps_name:
+                            continue
+                        other_lower = other_name.lower()
+                        if other_lower == base_lower or other_lower.startswith(base_lower + "-"):
+                            has_children = True
+                            break
+                        if base_lower == "fatehgarh-barmer":
+                            if "fatehgarh" in other_lower or "barmer" in other_lower:
+                                has_children = True
+                                break
+                    if has_children:
+                        logger.info("[%s] [%s] Filtering out parent complex summary row: '%s'", kind.upper(), filename, ps_name)
+                        to_remove.add(idx)
+            if to_remove:
+                all_records = [rec for idx, rec in enumerate(all_records) if idx not in to_remove]
 
     logger.info("[%s] [%s] %d record(s) extracted", kind.upper(), filename, len(all_records))
     return all_records
