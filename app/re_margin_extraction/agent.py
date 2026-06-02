@@ -319,8 +319,9 @@ def extract_margin_pdf(
     bundles: list[str] = []
     for start in range(0, total, pages_per_chunk):
         parts: list[str] = []
-        for i, page_md in enumerate(pages[start: start + pages_per_chunk], start + 1):
-            parts.append(f"=== PAGE {i + start + 1} of {total} ===\n{page_md}")
+        for offset, page_md in enumerate(pages[start: start + pages_per_chunk]):
+            page_num = start + offset + 1
+            parts.append(f"=== PAGE {page_num} of {total} ===\n{page_md}")
         raw_bundle = "\n\n".join(parts)
         bundles.append(truncate_bundle(raw_bundle))
 
