@@ -449,28 +449,33 @@ def extract_margin_pdf(
         if not rec.as_on_date:
             rec.as_on_date = as_on
 
-    # Programmatic carry-forward for fields defined in the record's schema_info()
+    # Programmatic carry-forward for fields defined in each record's type schema_info()
     if all_records:
-        first_rec = all_records[0]
-        if hasattr(first_rec, "schema_info"):
-            cf_keys = [k for k, _ in first_rec.schema_info().get("carry_forward", [])]
-            if cf_keys:
-                current_values = {k: None for k in cf_keys}
-                for rec in all_records:
-                    for key in cf_keys:
-                        # Find the actual Pydantic attribute name for this alias key
-                        attr_name = None
-                        for fname, finfo in type(rec).model_fields.items():
-                            alias = finfo.alias or fname
-                            if alias == key:
-                                attr_name = fname
-                                break
-                        if attr_name:
-                            val = getattr(rec, attr_name, None)
-                            if val and str(val).strip():
-                                current_values[key] = val
-                            else:
-                                setattr(rec, attr_name, current_values[key])
+        from collections import defaultdict
+        records_by_type = defaultdict(list)
+        for rec in all_records:
+            records_by_type[type(rec)].append(rec)
+            
+        for cls, rec_list in records_by_type.items():
+            if hasattr(cls, "schema_info"):
+                cf_keys = [k for k, _ in cls.schema_info().get("carry_forward", [])]
+                if cf_keys:
+                    current_values = {k: None for k in cf_keys}
+                    for rec in rec_list:
+                        for key in cf_keys:
+                            # Find the actual Pydantic attribute name for this alias key
+                            attr_name = None
+                            for fname, finfo in cls.model_fields.items():
+                                alias = finfo.alias or fname
+                                if alias == key:
+                                    attr_name = fname
+                                    break
+                            if attr_name:
+                                val = getattr(rec, attr_name, None)
+                                if val and str(val).strip():
+                                    current_values[key] = val
+                                else:
+                                    setattr(rec, attr_name, current_values[key])
 
     # Programmatic filtering of duplicate/summary parent complex rows
     if all_records:

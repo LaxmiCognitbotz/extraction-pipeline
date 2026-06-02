@@ -245,6 +245,7 @@ def run_pipeline(
         re_records = [r for r in existing_re if getattr(r, 'source_file', '') not in processed_names]
 
         # Extract
+        failed_files = []
         for pdf_path, default_kind in files_to_process:
             logger.info("Extracting %s with default kind '%s'", pdf_path.name, default_kind.upper())
             try:
@@ -260,6 +261,10 @@ def run_pipeline(
                         re_records.append(r)
             except Exception as exc:
                 logger.error("FAILED to process [%s]: %s", pdf_path.name, exc, exc_info=True)
+                failed_files.append((pdf_path.name, str(exc)))
+
+        if failed_files:
+            raise RuntimeError(f"Extraction failed for some files: {failed_files}")
 
         # Save Non-RE JSON
         NON_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
