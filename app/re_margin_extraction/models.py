@@ -121,8 +121,11 @@ class NonRESubstationMarginRecord(BaseModel):
                 "additional_margin_ict",
                 "bays_req_ict",
             ]:
-                if data.get(key) is None:
+                val = data.get(key)
+                if val is None:
                     data[key] = {}
+                elif not isinstance(val, dict):
+                    data[key] = {"400kV level": str(val)}
         return data
 
     class Config:
@@ -220,10 +223,19 @@ class ProposedRESubstationMarginRecord(BaseModel):
                     "Under Implementation": {},
                     "Planned": {}
                 }
-            elif isinstance(tc, dict):
+            elif not isinstance(tc, dict):
+                data[tc_key] = {
+                    "Existing": {"400/220kV or 400/132kV": str(tc)},
+                    "Under Implementation": {},
+                    "Planned": {}
+                }
+            else:
                 for sub in ["Existing", "Under Implementation", "Planned", "existing", "under_implementation", "planned"]:
-                    if tc.get(sub) is None:
+                    sub_val = tc.get(sub)
+                    if sub_val is None:
                         tc[sub] = {}
+                    elif not isinstance(sub_val, dict):
+                        tc[sub] = {"400/220kV or 400/132kV" if sub in ["Existing", "existing"] else "400/220kV": str(sub_val)}
             
             for key in [
                 "Additional Margin on existing / UC system",
@@ -231,8 +243,11 @@ class ProposedRESubstationMarginRecord(BaseModel):
                 "additional_margin_existing",
                 "additional_margin_ict",
             ]:
-                if data.get(key) is None:
+                val = data.get(key)
+                if val is None:
                     data[key] = {}
+                elif not isinstance(val, dict):
+                    data[key] = {"400kV level": str(val)}
         return data
 
     class Config:
@@ -351,8 +366,14 @@ class RESubstationMarginRecord(BaseModel):
                 "margin_for_connectivity",
                 "additional_margin_ict",
             ]:
-                if data.get(key) is None:
+                val = data.get(key)
+                if val is None:
                     data[key] = {}
+                elif not isinstance(val, dict):
+                    if key in ["RE Potential (MW)", "re_potential"]:
+                        data[key] = {"RE Potential [A]": str(val)}
+                    else:
+                        data[key] = {"Total": str(val)}
         return data
 
     class Config:

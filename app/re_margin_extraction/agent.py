@@ -221,6 +221,41 @@ def _get_agent(kind: str) -> Agent:
 # 3-tier loop-detection fallback
 # =─────────────────────────────────────────────────────────────────────────────
 
+import time
+
+def run_agent_with_retry(agent: Agent, prompt: str, max_retries: int = 5) -> Any:
+    for attempt in range(1, max_retries + 1):
+        try:
+            return agent.run_sync(prompt)
+        except Exception as exc:
+            err_str = str(exc).lower()
+            is_rate_limit = (
+                "429" in err_str 
+                or "resource_exhausted" in err_str 
+                or "quota exceeded" in err_str 
+                or "rate limit" in err_str 
+                or "limit: 0" in err_str
+            )
+            if is_rate_limit and attempt < max_retries:
+                # Parse retry delay if present, otherwise default to 60s
+                wait_sec = 60
+                import re
+                match = re.search(r"retry in ([\d\.]+)s", err_str)
+                if match:
+                    try:
+                        wait_sec = int(float(match.group(1))) + 2
+                    except ValueError:
+                        pass
+                logger.warning(
+                    "Rate limit/Quota hit. Attempt %d/%d. Sleeping for %d seconds...",
+                    attempt, max_retries, wait_sec
+                )
+                time.sleep(wait_sec)
+                continue
+            # Raise other exceptions or if we exhausted retries
+            raise exc
+
+
 def _run_single_page_with_fallback(
     agent: Agent,
     page_md: str,
@@ -252,7 +287,7 @@ def _run_single_page_with_fallback(
             + prompt_prefix + current
         )
         try:
-            sub_result = agent.run_sync(user_msg).output
+            sub_result = run_agent_with_retry(agent, user_msg).output
             if sub_result.as_on_date and not detected_date_ref[0]:
                 detected_date_ref[0] = sub_result.as_on_date
             all_records.extend(sub_result.records)
@@ -263,24 +298,53 @@ def _run_single_page_with_fallback(
                 )
             return
         except Exception as e:
-            err = str(e)
-            is_loop = "looping content" in err or "loop detection" in err.lower()
-            if is_loop and tier_num < len(tiers):
+            if tier_num < len(tiers):
                 logger.warning(
-                    "[%s] [%s] page %d tier-%d loop — escalating",
-                    kind.upper(), filename, page_num, tier_num,
+                    "[%s] [%s] page %d tier-%d failed (%s) — escalating",
+                    kind.upper(), filename, page_num, tier_num, e,
                 )
                 continue
             logger.error(
                 "[%s] [%s] page %d tier-%d failed: %s",
                 kind.upper(), filename, page_num, tier_num, e, exc_info=True,
             )
-            return
+            raise e
 
 
 # =─────────────────────────────────────────────────────────────────────────────
 # Extraction functions
 # =─────────────────────────────────────────────────────────────────────────────
+
+def detect_page_kind(page_text: str, default_kind: str) -> str:
+    text_lower = page_text.lower()
+    
+    # Check for RE Pooling Stations first
+    if (
+        "pooling stations" in text_lower 
+        or "re ps category" in text_lower 
+        or "pooling station capacity" in text_lower
+        or "re potential" in text_lower
+        or "connectivity granted" in text_lower
+        or "margin for connectivity" in text_lower
+        or "additional margin for connectivity" in text_lower
+    ):
+        return "re-substations"
+        
+    # Check for Non-RE vs Proposed RE
+    # Proposed RE has columns: "Transformation Capacity (MVA)"
+    if "transformation capacity (mva)" in text_lower:
+        return "proposed-re"
+        
+    # Non-RE has columns: "Existing / UC/ Planned MVA Capacity" or "Remarks / Total Addl. Margins"
+    if (
+        "existing / uc/ planned mva capacity" in text_lower 
+        or "remarks / total addl. margins" in text_lower
+        or "line bays required" in text_lower
+    ):
+        return "non-re"
+        
+    return default_kind
+
 
 def extract_margin_pdf(
     pdf_path: Path,
@@ -290,7 +354,6 @@ def extract_margin_pdf(
     """
     Extract all margin records from a single margin PDF using opendataloader-pdf
     """
-    agent = _get_agent(kind)
     filename = pdf_path.name
     filename_date = _date_from_filename(filename)
     detected_date_ref: list[str | None] = [None]
@@ -324,45 +387,55 @@ def extract_margin_pdf(
     total = len(pages)
     logger.info("[%s] [%s] %d page(s) extracted via Markdown", kind.upper(), filename, total)
 
-    # Step 3: Chunk pages and feed to LLM
-    bundles: list[str] = []
-    for start in range(0, total, pages_per_chunk):
-        parts: list[str] = []
-        for offset, page_md in enumerate(pages[start: start + pages_per_chunk]):
-            page_num = start + offset + 1
-            parts.append(f"=== PAGE {page_num} of {total} ===\n{page_md}")
-        raw_bundle = "\n\n".join(parts)
-        bundles.append(truncate_bundle(raw_bundle))
+    # Step 3: Group pages by detected kind dynamically
+    grouped_pages: list[tuple[str, list[tuple[int, str]]]] = []
+    for idx, page_md in enumerate(pages):
+        page_num = idx + 1
+        page_kind = detect_page_kind(page_md, kind)
+        if not grouped_pages or grouped_pages[-1][0] != page_kind:
+            grouped_pages.append((page_kind, []))
+        grouped_pages[-1][1].append((page_num, page_md))
 
-    logger.info("[%s] [%s] %d chunk(s) → LLM", kind.upper(), filename, len(bundles))
+    # Step 4: Chunk pages within each group and feed to respective LLM agent
+    for grp_kind, grp_pages in grouped_pages:
+        grp_agent = _get_agent(grp_kind)
+        logger.info(
+            "[%s] [%s] Processing group of kind '%s' containing %d page(s)",
+            kind.upper(), filename, grp_kind.upper(), len(grp_pages)
+        )
+        
+        for start in range(0, len(grp_pages), pages_per_chunk):
+            chunk = grp_pages[start: start + pages_per_chunk]
+            parts = []
+            chunk_page_nums = []
+            for p_num, p_md in chunk:
+                parts.append(f"=== PAGE {p_num} of {total} ===\n{p_md}")
+                chunk_page_nums.append(p_num)
+            
+            raw_bundle = "\n\n".join(parts)
+            bundle = truncate_bundle(raw_bundle)
+            
+            logger.info("[%s] [%s] chunk with pages %s → LLM (%s)", kind.upper(), filename, chunk_page_nums, grp_kind.upper())
+            try:
+                result = run_agent_with_retry(
+                    grp_agent,
+                    f"Extract all margin records:\n\n{bundle}"
+                ).output
 
-    for i, bundle in enumerate(bundles, 1):
-        logger.info("[%s] [%s] chunk %d/%d", kind.upper(), filename, i, len(bundles))
-        try:
-            result = agent.run_sync(
-                f"Extract all margin records:\n\n{bundle}"
-            ).output
+                if result.as_on_date and not detected_date_ref[0]:
+                    detected_date_ref[0] = result.as_on_date
+                all_records.extend(result.records)
 
-            if result.as_on_date and not detected_date_ref[0]:
-                detected_date_ref[0] = result.as_on_date
-            all_records.extend(result.records)
-
-        except Exception as exc:
-            err_str = str(exc)
-            if "looping content" in err_str or "loop detection" in err_str.lower():
+            except Exception as exc:
                 logger.warning(
-                    "[%s] [%s] chunk %d: loop detection — retrying 1 page at a time with escalation",
-                    kind.upper(), filename, i,
+                    "[%s] [%s] chunk with pages %s failed (%s) — retrying 1 page at a time with escalation fallback",
+                    kind.upper(), filename, chunk_page_nums, exc,
                 )
-                start_page = (i - 1) * pages_per_chunk
-                end_page = min(start_page + pages_per_chunk, total)
-                for pg_idx in range(start_page, end_page):
+                for p_num, p_md in chunk:
                     _run_single_page_with_fallback(
-                        agent, pages[pg_idx], pg_idx + 1, total, kind, filename,
+                        grp_agent, p_md, p_num, total, grp_kind, filename,
                         all_records, detected_date_ref,
                     )
-            else:
-                logger.error("[%s] [%s] chunk %d failed: %s", kind.upper(), filename, i, exc, exc_info=True)
 
     # Finalize dates and inject metadata
     as_on = detected_date_ref[0] or filename_date

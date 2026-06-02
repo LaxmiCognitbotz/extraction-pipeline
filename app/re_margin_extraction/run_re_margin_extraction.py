@@ -159,119 +159,128 @@ def run_pipeline(
 ) -> None:
     """Run extraction on folders independently and export a styled Excel file."""
     logger.info("Initializing Renewable Energy Margin Extraction Pipeline...")
-    
-    non_re_records = []
-    proposed_re_records = []
-    re_records = []
 
-    # Auto-detect folder kind if single_file is provided
+    from app.re_margin_extraction.models import (
+        NonRESubstationMarginRecord,
+        ProposedRESubstationMarginRecord,
+        RESubstationMarginRecord,
+    )
+
+    # 1. Determine files to process
+    files_to_process: list[tuple[Path, str]] = []
     detected_kind = None
     target_pdf_path = None
+
     if single_file:
         for k, folder in [("non-re", NON_RE_DIR), ("proposed-re", PROPOSED_RE_DIR), ("re-substations", RE_DIR)]:
             candidate = folder / single_file
             if candidate.exists():
                 target_pdf_path = candidate
                 detected_kind = k
+                files_to_process.append((candidate, k))
                 break
         
         if not target_pdf_path:
             logger.error("File '%s' not found in any subfolder under %s", single_file, INPUT_ROOT)
             sys.exit(1)
         logger.info("Detected single file for extraction: %s (%s)", target_pdf_path.name, detected_kind.upper())
-
-    # 1. Process Non-RE Substations
-    should_extract_non_re = (
-        (folder_filter == "all" or folder_filter == "non-re")
-        and (not single_file or detected_kind == "non-re")
-    )
-    if should_extract_non_re:
-        logger.info("=== [1/3] Extracting Non-RE Substations Margin ===")
-        if single_file:
-            existing = _load_existing_records(NON_RE_JSON_OUT, kind="non-re")
-            non_re_records = [r for r in existing if getattr(r, 'source_file', '') != target_pdf_path.name]
-            
-            recs = extract_margin_pdf(target_pdf_path, kind="non-re", pages_per_chunk=pages_per_chunk)
-            non_re_records.extend(recs)
-            
-            NON_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
-            payload = _to_flat_json(non_re_records)
-            with open(NON_RE_JSON_OUT, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            logger.info("JSON saved: %s (%d record(s))", NON_RE_JSON_OUT, len(payload))
-        else:
-            non_re_records = _process_folder(
-                NON_RE_DIR,
-                kind="non-re",
-                json_out=NON_RE_JSON_OUT,
-                limit=limit,
-                pages_per_chunk=pages_per_chunk,
-                force=force
-            )
     else:
-        non_re_records = _load_existing_records(NON_RE_JSON_OUT, kind="non-re")
+        # non-re
+        if folder_filter == "all" or folder_filter == "non-re":
+            pdfs = sorted(list(NON_RE_DIR.glob("*.pdf")))
+            if limit is not None:
+                pdfs = pdfs[:limit]
+            for p in pdfs:
+                files_to_process.append((p, "non-re"))
+                
+        # proposed-re
+        if folder_filter == "all" or folder_filter == "proposed-re":
+            pdfs = sorted(list(PROPOSED_RE_DIR.glob("*.pdf")))
+            if limit is not None:
+                pdfs = pdfs[:limit]
+            for p in pdfs:
+                files_to_process.append((p, "proposed-re"))
+                
+        # re-substations
+        if folder_filter == "all" or folder_filter == "re-substations":
+            pdfs = sorted(list(RE_DIR.glob("*.pdf")))
+            if limit is not None:
+                pdfs = pdfs[:limit]
+            for p in pdfs:
+                files_to_process.append((p, "re-substations"))
 
-    # 2. Process Proposed RE Substations (older reports)
-    should_extract_proposed_re = (
-        (folder_filter == "all" or folder_filter == "proposed-re")
-        and (not single_file or detected_kind == "proposed-re")
-    )
-    if should_extract_proposed_re:
-        logger.info("=== [2/3] Extracting Proposed RE Substations Margin ===")
-        if single_file:
-            existing = _load_existing_records(PROPOSED_RE_JSON_OUT, kind="proposed-re")
-            proposed_re_records = [r for r in existing if getattr(r, 'source_file', '') != target_pdf_path.name]
-            
-            recs = extract_margin_pdf(target_pdf_path, kind="proposed-re", pages_per_chunk=pages_per_chunk)
-            proposed_re_records.extend(recs)
-            
-            PROPOSED_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
-            payload = _to_flat_json(proposed_re_records)
-            with open(PROPOSED_RE_JSON_OUT, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            logger.info("JSON saved: %s (%d record(s))", PROPOSED_RE_JSON_OUT, len(payload))
-        else:
-            proposed_re_records = _process_folder(
-                PROPOSED_RE_DIR,
-                kind="proposed-re",
-                json_out=PROPOSED_RE_JSON_OUT,
-                limit=limit,
-                pages_per_chunk=pages_per_chunk,
-                force=force
-            )
-    else:
-        proposed_re_records = _load_existing_records(PROPOSED_RE_JSON_OUT, kind="proposed-re")
+    # 2. Load existing records
+    existing_non_re = _load_existing_records(NON_RE_JSON_OUT, kind="non-re")
+    existing_proposed = _load_existing_records(PROPOSED_RE_JSON_OUT, kind="proposed-re")
+    existing_re = _load_existing_records(RE_JSON_OUT, kind="re-substations")
 
-    # 3. Process RE Substations
-    should_extract_re = (
-        (folder_filter == "all" or folder_filter == "re-substations")
-        and (not single_file or detected_kind == "re-substations")
-    )
-    if should_extract_re:
-        logger.info("=== [3/3] Extracting RE Substations Margin ===")
-        if single_file:
-            existing = _load_existing_records(RE_JSON_OUT, kind="re-substations")
-            re_records = [r for r in existing if getattr(r, 'source_file', '') != target_pdf_path.name]
-            
-            recs = extract_margin_pdf(target_pdf_path, kind="re-substations", pages_per_chunk=pages_per_chunk)
-            re_records.extend(recs)
-            
-            RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
-            payload = _to_flat_json(re_records)
-            with open(RE_JSON_OUT, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            logger.info("JSON saved: %s (%d record(s))", RE_JSON_OUT, len(payload))
-        else:
-            re_records = _process_folder(
-                RE_DIR,
-                kind="re-substations",
-                json_out=RE_JSON_OUT,
-                limit=limit,
-                pages_per_chunk=pages_per_chunk,
-                force=force
-            )
+    # 3. Filter already processed files if force=False
+    if not force:
+        processed_files = set()
+        for r in existing_non_re:
+            if getattr(r, 'source_file', ''):
+                processed_files.add(r.source_file)
+        for r in existing_proposed:
+            if getattr(r, 'source_file', ''):
+                processed_files.add(r.source_file)
+        for r in existing_re:
+            if getattr(r, 'source_file', ''):
+                processed_files.add(r.source_file)
+                
+        skipped = [p for p, _ in files_to_process if p.name in processed_files]
+        files_to_process = [(p, k) for p, k in files_to_process if p.name not in processed_files]
+        if skipped:
+            logger.info("Skipping %d already-extracted PDF(s). Use --force to re-extract.", len(skipped))
+
+    if not files_to_process:
+        logger.info("No new PDFs to extract.")
+        non_re_records = existing_non_re
+        proposed_re_records = existing_proposed
+        re_records = existing_re
     else:
-        re_records = _load_existing_records(RE_JSON_OUT, kind="re-substations")
+        # Prepare targets (filtering out overwrites of processed files)
+        processed_names = {p.name for p, _ in files_to_process}
+        non_re_records = [r for r in existing_non_re if getattr(r, 'source_file', '') not in processed_names]
+        proposed_re_records = [r for r in existing_proposed if getattr(r, 'source_file', '') not in processed_names]
+        re_records = [r for r in existing_re if getattr(r, 'source_file', '') not in processed_names]
+
+        # Extract
+        for pdf_path, default_kind in files_to_process:
+            logger.info("Extracting %s with default kind '%s'", pdf_path.name, default_kind.upper())
+            try:
+                recs = extract_margin_pdf(pdf_path, kind=default_kind, pages_per_chunk=pages_per_chunk)
+                
+                # Route newly extracted records to their correct lists
+                for r in recs:
+                    if isinstance(r, NonRESubstationMarginRecord):
+                        non_re_records.append(r)
+                    elif isinstance(r, ProposedRESubstationMarginRecord):
+                        proposed_re_records.append(r)
+                    elif isinstance(r, RESubstationMarginRecord):
+                        re_records.append(r)
+            except Exception as exc:
+                logger.error("FAILED to process [%s]: %s", pdf_path.name, exc, exc_info=True)
+
+        # Save Non-RE JSON
+        NON_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
+        payload = _to_flat_json(non_re_records)
+        with open(NON_RE_JSON_OUT, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        logger.info("JSON saved: %s (%d record(s))", NON_RE_JSON_OUT, len(payload))
+
+        # Save Proposed RE JSON
+        PROPOSED_RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
+        payload = _to_flat_json(proposed_re_records)
+        with open(PROPOSED_RE_JSON_OUT, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        logger.info("JSON saved: %s (%d record(s))", PROPOSED_RE_JSON_OUT, len(payload))
+
+        # Save RE JSON
+        RE_JSON_OUT.parent.mkdir(parents=True, exist_ok=True)
+        payload = _to_flat_json(re_records)
+        with open(RE_JSON_OUT, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        logger.info("JSON saved: %s (%d record(s))", RE_JSON_OUT, len(payload))
 
     # 4. Generate 3-sheet Excel
     logger.info("Generating fully formatted 3-sheet Excel workbook...")
