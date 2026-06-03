@@ -87,6 +87,7 @@ class NonRESubstationMarginRecord(BaseModel):
     source_file: str = Field("", alias="Source File")
     as_on_date: Optional[str] = Field(None, alias="As On Date")
     state: Optional[str] = Field(None, alias="State")
+    complex_name: Optional[str] = Field(None, alias="Complex Name")
     station_name: Optional[str] = Field(None, alias="Name of station")
     mva_capacity: Optional[str] = Field(None, alias="Existing / UC/ Planned MVA Capacity")
     allocated_under_process_mw: Optional[str] = Field(None, alias="Capacity Allocated/ Under Process (MW)")
@@ -192,6 +193,7 @@ class ProposedRESubstationMarginRecord(BaseModel):
     source_file: str = Field("", alias="Source File")
     as_on_date: Optional[str] = Field(None, alias="As On Date")
     state: Optional[str] = Field(None, alias="State")
+    complex_name: Optional[str] = Field(None, alias="Complex Name")
     station_name: Optional[str] = Field(None, alias="Name of station")
     
     transformation_capacity: TransformationCapacityMVA = Field(
@@ -317,6 +319,7 @@ class RESubstationMarginRecord(BaseModel):
     category: Optional[str] = Field(None, alias="Category")
     
     pooling_station: Optional[str] = Field(None, alias="Pooling Station")
+    complex_name: Optional[str] = Field(None, alias="Complex Name")
     state: Optional[str] = Field(None, alias="State")
     
     re_potential: REPotentialMW = Field(

@@ -152,7 +152,7 @@ def _load_existing_records(json_path: Path, kind: str) -> list[Any]:
 
 def run_pipeline(
     limit: int | None = 1,
-    pages_per_chunk: int = 4,
+    pages_per_chunk: int = 1,
     folder_filter: str = "all",
     single_file: str | None = None,
     force: bool = False,
@@ -326,8 +326,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pages-per-chunk", "-p",
         type=int,
-        default=4,
-        help="Pages per LLM call (default: 4)."
+        default=1,
+        help="Pages per LLM call (default: 1)."
     )
     parser.add_argument(
         "--force",

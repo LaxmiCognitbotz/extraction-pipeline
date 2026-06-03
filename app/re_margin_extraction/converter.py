@@ -140,6 +140,7 @@ NON_RE_COLUMNS = [
     (["Source File"], "Source File"),
     (["As On Date"], "As On Date"),
     (["State"], "State"),
+    (["Complex Name"], "Complex Name"),
     (["Name of station"], "Name of Station"),
     (["Existing / UC/ Planned MVA Capacity"], "MVA Capacity"),
     (["Capacity Allocated/ Under Process (MW)"], "Capacity Allocated / Under Process (MW)"),
@@ -166,22 +167,23 @@ def write_non_re_sheet(ws: openpyxl.worksheet.worksheet.Worksheet, records: list
     style_merged_header(ws, 1, 1, 2, 1, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Source File", align_center)
     style_merged_header(ws, 1, 2, 2, 2, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "As On Date", align_center)
     style_merged_header(ws, 1, 3, 2, 3, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "State", align_center)
-    style_merged_header(ws, 1, 4, 2, 4, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Name of Station", align_center)
-    style_merged_header(ws, 1, 5, 2, 5, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Existing / UC / Planned MVA Capacity", align_center)
-    style_merged_header(ws, 1, 6, 2, 6, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Capacity Allocated / Under Process (MW)", align_center)
+    style_merged_header(ws, 1, 4, 2, 4, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Complex Name", align_center)
+    style_merged_header(ws, 1, 5, 2, 5, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Name of Station", align_center)
+    style_merged_header(ws, 1, 6, 2, 6, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Existing / UC / Planned MVA Capacity", align_center)
+    style_merged_header(ws, 1, 7, 2, 7, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Capacity Allocated / Under Process (MW)", align_center)
     
     # Merged categories
-    style_merged_header(ws, 1, 7, 1, 8, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Addl Margin on Existing/UC System (MW)", align_center)
-    style_merged_header(ws, 1, 9, 1, 10, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Line Bays Req (Existing System)", align_center)
-    style_merged_header(ws, 1, 11, 1, 12, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Addl Margin with ICT Aug (MW)", align_center)
-    style_merged_header(ws, 1, 13, 1, 14, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Line Bays Req (ICT Aug)", align_center)
+    style_merged_header(ws, 1, 8, 1, 9, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Addl Margin on Existing/UC System (MW)", align_center)
+    style_merged_header(ws, 1, 10, 1, 11, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Line Bays Req (Existing System)", align_center)
+    style_merged_header(ws, 1, 12, 1, 13, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Addl Margin with ICT Aug (MW)", align_center)
+    style_merged_header(ws, 1, 14, 1, 15, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Line Bays Req (ICT Aug)", align_center)
     
-    style_merged_header(ws, 1, 15, 2, 15, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "No. of Trfs Required", align_center)
-    style_merged_header(ws, 1, 16, 2, 16, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Remarks / Total Addl. Margins", align_center)
+    style_merged_header(ws, 1, 16, 2, 16, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "No. of Trfs Required", align_center)
+    style_merged_header(ws, 1, 17, 2, 17, _NON_RE_HEADER_FILL, _NON_RE_HEADER_FONT, "Remarks / Total Addl. Margins", align_center)
 
     # 2. Row 2 Sub Headers (Sub columns)
     for col_idx, (_, sub_label) in enumerate(NON_RE_COLUMNS, start=1):
-        if col_idx in [7, 8, 9, 10, 11, 12, 13, 14]:
+        if col_idx in [8, 9, 10, 11, 12, 13, 14, 15]:
             ws.cell(row=2, column=col_idx, value=sub_label)
 
     # Write Data starting at row 3
@@ -222,6 +224,7 @@ PROPOSED_RE_COLUMNS = [
     (["Source File"], "Source File"),
     (["As On Date"], "As On Date"),
     (["State"], "State"),
+    (["Complex Name"], "Complex Name"),
     (["Name of station"], "Name of Station"),
     (["Transformation Capacity (MVA)", "Existing", "765/400kV"], "765/400kV"),
     (["Transformation Capacity (MVA)", "Existing", "400/220kV or 400/132kV"], "400/220kV or 400/132kV"),
@@ -250,33 +253,34 @@ def write_proposed_re_sheet(ws: openpyxl.worksheet.worksheet.Worksheet, records:
     style_merged_header(ws, 1, 1, 3, 1, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Source File", align_center)
     style_merged_header(ws, 1, 2, 3, 2, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "As On Date", align_center)
     style_merged_header(ws, 1, 3, 3, 3, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "State", align_center)
-    style_merged_header(ws, 1, 4, 3, 4, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Name of Station", align_center)
+    style_merged_header(ws, 1, 4, 3, 4, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Complex Name", align_center)
+    style_merged_header(ws, 1, 5, 3, 5, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Name of Station", align_center)
     
     # Transformation Capacity Main Merge
-    style_merged_header(ws, 1, 5, 1, 10, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Transformation Capacity (MVA)", align_center)
+    style_merged_header(ws, 1, 6, 1, 11, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Transformation Capacity (MVA)", align_center)
     
-    style_merged_header(ws, 1, 11, 3, 11, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Allocated (MW)", align_center)
+    style_merged_header(ws, 1, 12, 3, 12, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Allocated (MW)", align_center)
     
     # Margins merges
-    style_merged_header(ws, 1, 12, 1, 13, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Addl Margin on Existing/UC (MW)", align_center)
-    style_merged_header(ws, 1, 14, 1, 15, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Addl Margin with ICT Aug (MW)", align_center)
+    style_merged_header(ws, 1, 13, 1, 14, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Addl Margin on Existing/UC (MW)", align_center)
+    style_merged_header(ws, 1, 15, 1, 16, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Addl Margin with ICT Aug (MW)", align_center)
     
-    style_merged_header(ws, 1, 16, 3, 16, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "No. of Trfs Required", align_center)
-    style_merged_header(ws, 1, 17, 3, 17, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Remarks", align_center)
+    style_merged_header(ws, 1, 17, 3, 17, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "No. of Trfs Required", align_center)
+    style_merged_header(ws, 1, 18, 3, 18, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Remarks", align_center)
 
     # 2. Row 2 Category Merges & Headers
-    style_merged_header(ws, 2, 5, 2, 6, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Existing", align_center)
-    style_merged_header(ws, 2, 7, 2, 8, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Under Implementation", align_center)
-    style_merged_header(ws, 2, 9, 2, 10, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Planned", align_center)
+    style_merged_header(ws, 2, 6, 2, 7, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Existing", align_center)
+    style_merged_header(ws, 2, 8, 2, 9, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Under Implementation", align_center)
+    style_merged_header(ws, 2, 10, 2, 11, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "Planned", align_center)
     
-    style_merged_header(ws, 2, 12, 3, 12, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "220kV level", align_center)
-    style_merged_header(ws, 2, 13, 3, 13, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "400kV level", align_center)
-    style_merged_header(ws, 2, 14, 3, 14, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "220kV level", align_center)
-    style_merged_header(ws, 2, 15, 3, 15, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "400kV level", align_center)
+    style_merged_header(ws, 2, 13, 3, 13, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "220kV level", align_center)
+    style_merged_header(ws, 2, 14, 3, 14, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "400kV level", align_center)
+    style_merged_header(ws, 2, 15, 3, 15, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "220kV level", align_center)
+    style_merged_header(ws, 2, 16, 3, 16, _PROPOSED_RE_HEADER_FILL, _PROPOSED_RE_HEADER_FONT, "400kV level", align_center)
 
     # 3. Row 3 Capacity Sub-levels
     for col_idx, (_, sub_label) in enumerate(PROPOSED_RE_COLUMNS, start=1):
-        if col_idx in [5, 6, 7, 8, 9, 10]:
+        if col_idx in [6, 7, 8, 9, 10, 11]:
             ws.cell(row=3, column=col_idx, value=sub_label)
 
     # Write Data starting at row 4
@@ -318,6 +322,7 @@ RE_COLUMNS = [
     (["As On Date"], "As On Date"),
     (["Region"], "Region"),
     (["Category"], "Category"),
+    (["Complex Name"], "Complex Name"),
     (["Pooling Station"], "Pooling Station"),
     (["State"], "State"),
     (["RE Potential (MW)", "RE Potential [A]"], "RE Potential [A]"),
@@ -351,22 +356,23 @@ def write_re_sheet(ws: openpyxl.worksheet.worksheet.Worksheet, records: list[Any
     style_merged_header(ws, 1, 2, 2, 2, _RE_HEADER_FILL, _RE_HEADER_FONT, "As On Date", align_center)
     style_merged_header(ws, 1, 3, 2, 3, _RE_HEADER_FILL, _RE_HEADER_FONT, "Region", align_center)
     style_merged_header(ws, 1, 4, 2, 4, _RE_HEADER_FILL, _RE_HEADER_FONT, "Category", align_center)
-    style_merged_header(ws, 1, 5, 2, 5, _RE_HEADER_FILL, _RE_HEADER_FONT, "Pooling Station", align_center)
-    style_merged_header(ws, 1, 6, 2, 6, _RE_HEADER_FILL, _RE_HEADER_FONT, "State", align_center)
+    style_merged_header(ws, 1, 5, 2, 5, _RE_HEADER_FILL, _RE_HEADER_FONT, "Complex Name", align_center)
+    style_merged_header(ws, 1, 6, 2, 6, _RE_HEADER_FILL, _RE_HEADER_FONT, "Pooling Station", align_center)
+    style_merged_header(ws, 1, 7, 2, 7, _RE_HEADER_FILL, _RE_HEADER_FONT, "State", align_center)
     
     # Merged blocks
-    style_merged_header(ws, 1, 7, 1, 9, _RE_HEADER_FILL, _RE_HEADER_FONT, "RE Potential (MW)", align_center)
-    style_merged_header(ws, 1, 10, 2, 10, _RE_HEADER_FILL, _RE_HEADER_FONT, "Expected CoD of Pooling Station", align_center)
-    style_merged_header(ws, 1, 11, 1, 13, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Granted / Agreed (MW)", align_center)
-    style_merged_header(ws, 1, 14, 1, 16, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Under Process (MW)", align_center)
-    style_merged_header(ws, 1, 17, 1, 19, _RE_HEADER_FILL, _RE_HEADER_FONT, "Margin for Connectivity (MW)", align_center)
-    style_merged_header(ws, 1, 20, 1, 22, _RE_HEADER_FILL, _RE_HEADER_FONT, "Addl Margin requiring ICT Aug / Tr. System (MW)", align_center)
+    style_merged_header(ws, 1, 8, 1, 10, _RE_HEADER_FILL, _RE_HEADER_FONT, "RE Potential (MW)", align_center)
+    style_merged_header(ws, 1, 11, 2, 11, _RE_HEADER_FILL, _RE_HEADER_FONT, "Expected CoD of Pooling Station", align_center)
+    style_merged_header(ws, 1, 12, 1, 14, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Granted / Agreed (MW)", align_center)
+    style_merged_header(ws, 1, 15, 1, 17, _RE_HEADER_FILL, _RE_HEADER_FONT, "Connectivity Under Process (MW)", align_center)
+    style_merged_header(ws, 1, 18, 1, 20, _RE_HEADER_FILL, _RE_HEADER_FONT, "Margin for Connectivity (MW)", align_center)
+    style_merged_header(ws, 1, 21, 1, 23, _RE_HEADER_FILL, _RE_HEADER_FONT, "Addl Margin requiring ICT Aug / Tr. System (MW)", align_center)
     
-    style_merged_header(ws, 1, 23, 2, 23, _RE_HEADER_FILL, _RE_HEADER_FONT, "Effectiveness of GNA for Capacity mentioned under 'Margin for Connectivity'", align_center)
+    style_merged_header(ws, 1, 24, 2, 24, _RE_HEADER_FILL, _RE_HEADER_FONT, "Effectiveness of GNA for Capacity mentioned under 'Margin for Connectivity'", align_center)
 
     # 2. Row 2 Sub Columns
     for col_idx, (_, sub_label) in enumerate(RE_COLUMNS, start=1):
-        if col_idx in [7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]:
+        if col_idx in [8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]:
             ws.cell(row=2, column=col_idx, value=sub_label)
 
     # Write Data starting at row 3

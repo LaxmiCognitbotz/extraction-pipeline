@@ -445,6 +445,58 @@ def extract_margin_pdf(
         if not rec.as_on_date:
             rec.as_on_date = as_on
 
+    # Programmatic assignment of Complex Name
+    if all_records:
+        current_complex = None
+        current_base = None
+        import re
+        for rec in all_records:
+            station = getattr(rec, "pooling_station", None) or getattr(rec, "station_name", None)
+            if not station:
+                continue
+            
+            name = station.strip()
+            name_lower = name.lower()
+            
+            # Is this a complex parent row?
+            if name_lower.endswith(" complex"):
+                current_complex = name
+                current_base = name_lower[:-8].strip()
+                setattr(rec, "complex_name", current_complex)
+                continue
+            
+            # Did the LLM extract the parent complex name in parentheses? e.g. "(Bhadla Complex) Bhadla-III"
+            m = re.match(r"^\((.*?Complex.*?)\)", name, re.IGNORECASE)
+            if m:
+                extracted_complex = m.group(1).strip()
+                setattr(rec, "complex_name", extracted_complex)
+                current_complex = extracted_complex
+                current_base = extracted_complex.lower().replace(" complex", "").strip()
+                continue
+            
+            # Is it a child of the current complex?
+            is_child = False
+            if current_complex and current_base:
+                name_no_index = re.sub(r"^[a-z]\.\s*", "", name_lower)
+                if name_no_index == current_base or name_no_index.startswith(current_base + "-") or name_no_index.startswith(current_base + " "):
+                    is_child = True
+                elif current_base == "fatehgarh-barmer":
+                    if "fatehgarh" in name_lower or "barmer" in name_lower:
+                        is_child = True
+                elif current_base == "koppal-ii/ gadag-ii":
+                    if "koppal" in name_lower or "gadag" in name_lower:
+                        is_child = True
+                elif current_base == "kurnool-iii/ anantapuram":
+                    if "kurnool" in name_lower or "anantapuram" in name_lower:
+                        is_child = True
+            
+            if is_child:
+                if not getattr(rec, "complex_name", None):
+                    setattr(rec, "complex_name", current_complex)
+            else:
+                current_complex = None
+                current_base = None
+
     # Programmatic carry-forward for fields defined in each record's type schema_info()
     if all_records:
         from collections import defaultdict
