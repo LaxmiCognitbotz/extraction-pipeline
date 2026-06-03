@@ -74,7 +74,7 @@ def _build_system_prompt(kind: str) -> str:
         "1. \"=== PAGE TEXT ===\" is your primary source of truth. "
         "Use it to recover values when TABLE cells are empty or null.",
     ] + cf_rules + [
-        f"{num_start}. Never skip any {row_noun} rows.",
+        f"{num_start}. CRITICAL REQUIREMENT: You MUST extract EVERY SINGLE {row_noun} row present in the markdown table. DO NOT stop early. Count the rows in the markdown and ensure your JSON output has the exact same number of records. NEVER omit, skip, or summarize rows. The completeness of the data is extremely important.",
         f"{num_start + 1}. If a cell contains '0' (zero), extract it as '0'. "
         "Do NOT convert '0' to null. Only blank cells, dashes '-', or spaces should be null.",
         f"{num_start + 2}. If a row is clearly a 'Total' or 'Sub-total' row (e.g., 'Total GUJ:', 'Total MAH:', 'Sub-total'), completely SKIP and IGNORE it. Do not extract it as a {row_noun}.",
@@ -454,6 +454,14 @@ def extract_margin_pdf(
             station = getattr(rec, "pooling_station", None) or getattr(rec, "station_name", None)
             if not station:
                 continue
+            # Clean up the station name by stripping alphabetical indexes like "a. ", "b. ", "a) "
+            clean_station = re.sub(r"^[a-zA-Z][\.\)]\s+", "", station).strip()
+            if clean_station != station:
+                if hasattr(rec, "pooling_station") and getattr(rec, "pooling_station"):
+                    rec.pooling_station = clean_station
+                elif hasattr(rec, "station_name") and getattr(rec, "station_name"):
+                    rec.station_name = clean_station
+                station = clean_station
             
             name = station.strip()
             name_lower = name.lower()
@@ -496,6 +504,35 @@ def extract_margin_pdf(
             else:
                 current_complex = None
                 current_base = None
+
+    # Filter out parent complex summary rows
+    if all_records:
+        to_remove = set()
+        
+        # Build a list of all complexes that have children
+        complex_children_count = {}
+        for rec in all_records:
+            cname = getattr(rec, "complex_name", None)
+            if not cname: continue
+            
+            station = getattr(rec, "pooling_station", None) or getattr(rec, "station_name", None)
+            if not station: continue
+            
+            if station.strip().lower() != cname.lower():
+                complex_children_count[cname.lower()] = complex_children_count.get(cname.lower(), 0) + 1
+                
+        for idx, rec in enumerate(all_records):
+            station = getattr(rec, "pooling_station", None) or getattr(rec, "station_name", None)
+            cname = getattr(rec, "complex_name", None)
+            if not station or not cname: continue
+            
+            # If this row IS the parent complex AND there are other child rows in this complex
+            if station.strip().lower() == cname.lower() and complex_children_count.get(cname.lower(), 0) > 0:
+                logger.info("[%s] [%s] Filtering out parent complex summary row: '%s'", kind.upper(), filename, station.strip())
+                to_remove.add(idx)
+                
+        if to_remove:
+            all_records = [rec for idx, rec in enumerate(all_records) if idx not in to_remove]
 
     # Programmatic carry-forward for fields defined in each record's type schema_info()
     if all_records:

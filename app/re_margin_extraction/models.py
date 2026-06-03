@@ -377,6 +377,18 @@ class RESubstationMarginRecord(BaseModel):
                         data[key] = {"RE Potential [A]": str(val)}
                     else:
                         data[key] = {"Total": str(val)}
+            
+            # Prevent State names from being mistakenly extracted as Regions, which poisons carry-forward
+            region_val = data.get("Region") or data.get("region")
+            if region_val and isinstance(region_val, str):
+                rv_lower = region_val.lower().strip()
+                # A valid region usually contains "region" or is an acronym like NR, WR, SR.
+                if not ("region" in rv_lower or rv_lower in ["nr", "wr", "sr", "er", "ner"]):
+                    if "Region" in data:
+                        data["Region"] = None
+                    if "region" in data:
+                        data["region"] = None
+
         return data
 
     class Config:
